@@ -192,7 +192,7 @@ Set_psk(){
 Set_host(){
 	echo "请输入 Snell 域名 "
 	read -e -p "(默认: bing.com):" host
-	[[ -z "${host}" ]] && host = bing.com
+	[[ -z "${host}" ]] && host=bing.com
 	echo && echo "========================"
 	echo -e "	域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
 	echo "========================" && echo
@@ -201,10 +201,11 @@ Set_host(){
 Set(){
 	check_installed_status
 	echo && echo -e "你要做什么？
+—————————————————————————
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
  ${Green_font_prefix}2.${Font_color_suffix}  修改 密钥
  ${Green_font_prefix}3.${Font_color_suffix}  修改 域名
-————————————————
+—————————————————————————
  ${Green_font_prefix}4.${Font_color_suffix}  修改 全部配置" && echo
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
