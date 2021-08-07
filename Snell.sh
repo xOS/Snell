@@ -355,8 +355,15 @@ View(){
 	echo -e " 域名\t: ${Green_font_prefix}${host}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
-	echo -e "${Info} 15s 后自动返回主菜单 !"
+	echo -e "${Info} 15s 后将自动返回主菜单 !"
     sleep 15s
+    start_menu
+}
+
+Status(){
+systemctl status snell-server
+echo -e "${Info} 5s 后将自动返回主菜单 !"
+    sleep 5s
     start_menu
 }
 
@@ -407,6 +414,9 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
 ——————————————————————————————————
  ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
+ ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
+ ——————————————————————————————————
+ ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本
 ==================================" && echo
 	if [[ -e ${FILE} ]]; then
 		check_pid
@@ -447,6 +457,12 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
 		;;
 		8)
 		View
+		;;
+		9)
+		Status
+		;;
+		10)
+		exit 0
 		;;
 		*)
 		echo "请输入正确数字 [0-8]"
