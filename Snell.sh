@@ -415,7 +415,7 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
  ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
- ——————————————————————————————————
+——————————————————————————————————
  ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本
 ==================================" && echo
 	if [[ -e ${FILE} ]]; then
