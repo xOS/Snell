@@ -391,7 +391,7 @@ Update_Shell(){
         start_menu
 	fi
 	sleep 3s
-    start_menu
+    	start_menu
 }
 start_menu(){
 clear
@@ -429,7 +429,7 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
 		echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
 	fi
 	echo
-	read -e -p " 请输入数字 [0-8]:" num
+	read -e -p " 请输入数字 [0-10]:" num
 	case "$num" in
 		0)
 		Update_Shell
@@ -465,7 +465,7 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
 		exit 0
 		;;
 		*)
-		echo "请输入正确数字 [0-8]"
+		echo "请输入正确数字 [0-10]"
 		;;
 	esac
 }
