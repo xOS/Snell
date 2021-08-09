@@ -10,7 +10,7 @@ export PATH
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.0"
+sh_ver="1.0.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -68,6 +68,7 @@ check_pid(){
 }
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
+	new_beta=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/b[0-9]//g')
 	[[ -z ${new_ver} ]] && echo -e "${Error} Snell 最新版本获取失败！" && exit 1
 	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
 }
@@ -98,14 +99,23 @@ Download(){
 		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
-
-	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip" && exit 1
+	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+    if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
+		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
+        unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
+        [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+	    rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+	    chmod +x snell-server
+	    mv snell-server "${FILE}"
+	    echo "${new_beta}" > ${Now_ver_File}
+	else
 	unzip -o "snell-server-${new_ver}-linux-${arch}.zip"
 	[[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip" && exit 1
 	rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
 	chmod +x snell-server
 	mv snell-server "${FILE}"
 	echo "${new_ver}" > ${Now_ver_File}
+	fi
 }
 Service(){
 	echo '
