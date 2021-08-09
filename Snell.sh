@@ -5,7 +5,7 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.0
+#	Version: 1.0.1
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
@@ -16,7 +16,6 @@ file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
 FILE="/usr/local/bin/snell-server"
 CONF="/etc/snell/config.conf"
-LOG="/etc/snell/snell-server.log"
 Now_ver_File="/etc/snell/ver.txt"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
@@ -145,6 +144,7 @@ Write_config(){
 	cat > ${CONF}<<-EOF
 [snell-server]
 listen = 0.0.0.0:${port}
+ipv6 = ${ipv6}
 psk = ${psk}
 obfs = tls
 obfs-host = ${host}
@@ -154,6 +154,7 @@ EOF
 }
 Read_config(){
 	[[ ! -e ${CONF} ]] && echo -e "${Error} Snell 配置文件不存在 !" && exit 1
+	ipv6=$(cat ${CONF}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
 	port=$(cat ${CONF}|grep ':'|awk -F ':' '{print $NF}')
 	psk=$(cat ${CONF}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
 	host=$(cat ${CONF}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
@@ -178,6 +179,15 @@ Set_port(){
 			echo "输入错误, 请输入正确的端口。"
 		fi
 		done
+}
+
+Set_ipv6(){
+	echo "是否开启 IPv6（true 或 false）?"
+	read -e -p "(默认: true):" ipv6
+	[[ -z "${ipv6}" ]] && ipv6=true
+	echo && echo "========================"
+	echo -e "	IPv6 开启状态 : ${Red_background_prefix} ${ipv6} ${Font_color_suffix}"
+	echo "========================" && echo
 }
 
 Set_psk(){
@@ -205,8 +215,9 @@ Set(){
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
  ${Green_font_prefix}2.${Font_color_suffix}  修改 密钥
  ${Green_font_prefix}3.${Font_color_suffix}  修改 域名
+ ${Green_font_prefix}4.${Font_color_suffix}  开关 IPv6
 —————————————————————————
- ${Green_font_prefix}4.${Font_color_suffix}  修改 全部配置" && echo
+ ${Green_font_prefix}5.${Font_color_suffix}  修改 全部配置" && echo
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
 	if [[ "${modify}" == "1" ]]; then
@@ -214,6 +225,7 @@ Set(){
 		Set_port
 		Set_psk=${psk}
 		Set_host=${host}
+		Set_ipv6=${ipv6}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "2" ]]; then
@@ -221,24 +233,35 @@ Set(){
 		Set_psk
 		Set_port=${port}
 		Set_host=${host}
+		Set_ipv6=${ipv6}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "3" ]]; then
 		Read_config
 		Set_host
 		Set_port=${port}
-		ss_psk=${psk}
+		psk=${psk}
+		Set_ipv6=${ipv6}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "4" ]]; then
 		Read_config
+		Set_host=${host}
+		Set_port=${port}
+		psk=${psk}
+		Set_ipv6
+		Write_config
+		Restart
+	elif [[ "${modify}" == "5" ]]; then
+		Read_config
 		Set_port
 		Set_psk
 		Set_host
+		Set_ipv6
 		Write_config
 		Restart
 	else
-		echo -e "${Error} 请输入正确的数字(1-4)" && exit 1
+		echo -e "${Error} 请输入正确的数字(1-5)" && exit 1
 	fi
     sleep 3s
     start_menu
@@ -250,6 +273,7 @@ Install(){
 	Set_port
 	Set_psk
 	Set_host
+	Set_ipv6
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
@@ -334,9 +358,9 @@ getipv4(){
 	fi
 }
 getipv6(){
-	ipv6=$(wget -qO- -6 -t1 -T2 ifconfig.co)
-	if [[ -z "${ipv6}" ]]; then
-		ipv6="IPv6_Error"
+	ip6=$(wget -qO- -6 -t1 -T2 ifconfig.co)
+	if [[ -z "${ip6}" ]]; then
+		ip6="IPv6_Error"
 	fi
 }
 
@@ -349,10 +373,11 @@ View(){
 	echo -e "Snell 配置信息："
 	echo -e "—————————————————————————"
 	[[ "${ipv4}" != "IPv4_Error" ]] && echo -e " 地址\t: ${Green_font_prefix}${ipv4}${Font_color_suffix}"
-	[[ "${ipv6}" != "IPv6_Error" ]] && echo -e " 地址\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
+	[[ "${ip6}" != "IPv6_Error" ]] && echo -e " 地址\t: ${Green_font_prefix}${ip6}${Font_color_suffix}"
 	echo -e " 端口\t: ${Green_font_prefix}${port}${Font_color_suffix}"
 	echo -e " 密钥\t: ${Green_font_prefix}${psk}${Font_color_suffix}"
 	echo -e " 域名\t: ${Green_font_prefix}${host}${Font_color_suffix}"
+	echo -e " IPv6\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
 	echo -e "${Info} 15s 后将自动返回主菜单 !"
