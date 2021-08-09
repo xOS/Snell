@@ -100,7 +100,7 @@ Download(){
 	fi
 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
 	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
-    if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
+    	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
 		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
         unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
         [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
