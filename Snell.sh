@@ -396,9 +396,8 @@ View(){
 }
 
 Status(){
-systemctl status snell-server
-echo -e "${Info} 5s 后将自动返回主菜单 !"
-    sleep 5s
+echo -e "${Info} 获取 Snell-Server 活动日志。"
+journalctl -xf -u snell-server.server
     start_menu
 }
 
