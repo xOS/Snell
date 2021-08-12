@@ -434,7 +434,7 @@ before_start_menu() {
     start_menu
 }
 exit_menu() {
-    exit 0
+    echo -e '\003'
 }
 start_menu(){
 clear
