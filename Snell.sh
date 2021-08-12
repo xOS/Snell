@@ -10,7 +10,7 @@ export PATH
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.1"
+sh_ver="1.0.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -18,10 +18,10 @@ FILE="/usr/local/bin/snell-server"
 CONF="/etc/snell/config.conf"
 Now_ver_File="/etc/snell/ver.txt"
 
-Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
+Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m" && Yellow_font_prefix="\033[0;33m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
 Error="${Red_font_prefix}[错误]${Font_color_suffix}"
-Tip="${Green_font_prefix}[注意]${Font_color_suffix}"
+Tip="${Yellow_font_prefix}[注意]${Font_color_suffix}"
 
 check_root(){
 	[[ $EUID != 0 ]] && echo -e "${Error} 当前非ROOT账号(或没有ROOT权限)，无法继续操作，请更换ROOT账号或使用 ${Green_background_prefix}sudo su${Font_color_suffix} 命令获取临时ROOT权限（执行后可能会提示输入当前账号的密码）。" && exit 1
@@ -76,7 +76,7 @@ check_new_ver(){
 check_ver_comparison(){
 	now_ver=$(cat ${Now_ver_File})
 	if [[ "${now_ver}" != "${new_ver}" ]]; then
-		echo -e "${Info} 发现 Snell已有新版本 [ ${new_ver} ]，旧版本 [ ${now_ver} ]"
+		echo -e "${Info} 发现 Snell 已有新版本 [ ${new_ver} ]，旧版本 [ ${now_ver} ]"
 		read -e -p "是否更新 ? [Y/n] :" yn
 		[[ -z "${yn}" ]] && yn="y"
 		if [[ $yn == [Yy] ]]; then
@@ -98,9 +98,9 @@ Download(){
 	else
 		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
-	echo -e "${Info} 开始下载稳定版 Snell ……"
+	echo -e "${Info} 默认开始下载稳定版 Snell ……"
 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
-	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败！ 准备请求测试版 Snell ……" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 稳定版下载失败！准备请求测试版 Snell ……" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
     	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
 		echo -e "${Info} 发现测试版 Snell ！开始下载测试版 Snell ……"
 		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
@@ -392,15 +392,14 @@ View(){
 	echo -e " IPv6\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
-	echo -e "${Info} 15s 后将自动返回主菜单 !"
-    sleep 15s
-    start_menu
+	before_start_menu
 }
 
 Status(){
-echo -e "${Info} 获取 Snell-Server 活动日志。"
-journalctl -xf -u snell-server.server
-    start_menu
+	echo -e "${Info} 获取 Snell-Server 活动日志 ……"
+	echo -e "${Tip} 退出请按 q ！"
+	systemctl status snell-server
+	before_start_menu
 }
 
 Update_Shell(){
@@ -428,6 +427,10 @@ Update_Shell(){
 	fi
 	sleep 3s
     	start_menu
+}
+before_start_menu() {
+    echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
+    start_menu
 }
 start_menu(){
 clear
