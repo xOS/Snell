@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.3
+#	Version: 1.0.4
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.3"
+sh_ver="1.0.4"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -411,7 +411,7 @@ Update_Shell(){
 		read -p "(默认: y):" yn
 		[[ -z "${yn}" ]] && yn="y"
 		if [[ ${yn} == [Yy] ]]; then
-			wget -O Snell.sh --no-check-certificate https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh && chmod +x Snell.sh
+			wget -N --no-check-certificate https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh && chmod +x Snell.sh
 			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ] !"
 			echo -e "3s后执行新脚本"
             sleep 3s
@@ -432,6 +432,9 @@ Update_Shell(){
 before_start_menu() {
     echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
     start_menu
+}
+exit_menu() {
+    exit 0
 }
 start_menu(){
 clear
@@ -502,7 +505,7 @@ Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffi
 		Status
 		;;
 		10)
-		exit 0
+		exit_menu
 		;;
 		*)
 		echo "请输入正确数字 [0-10]"
