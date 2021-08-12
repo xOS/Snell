@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.4
+#	Version: 1.0.5
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.4"
+sh_ver="1.0.5"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -350,7 +350,7 @@ Uninstall(){
 		[[ ! -z $PID ]] && kill -9 ${PID}
         systemctl disable snell-server
 		rm -rf "${FILE}"
-		echo && echo "Snell卸载完成 !" && echo
+		echo && echo "Snell 卸载完成 !" && echo
 	else
 		echo && echo "卸载已取消..." && echo
 	fi
@@ -397,9 +397,9 @@ View(){
 
 Status(){
 	echo -e "${Info} 获取 Snell-Server 活动日志 ……"
-	echo -e "${Tip} 退出请按 q ！"
+	echo -e "${Tip} 返回主菜单请按 q ！"
 	systemctl status snell-server
-	before_start_menu
+	start_menu
 }
 
 Update_Shell(){
