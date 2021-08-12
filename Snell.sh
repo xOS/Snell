@@ -98,9 +98,11 @@ Download(){
 	else
 		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
+	echo -e "${Info} 开始下载稳定版 Snell ……"
 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
-	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 压缩包下载失败！ 准备请求测试版 Snell ……" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
     	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
+		echo -e "${Info} 发现测试版 Snell ！开始下载测试版 Snell ……"
 		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
         unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
         [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
