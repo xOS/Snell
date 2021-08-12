@@ -5,7 +5,7 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.1
+#	Version: 1.0.2
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
