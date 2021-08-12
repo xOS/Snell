@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.2
+#	Version: 1.0.3
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.2"
+sh_ver="1.0.3"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -413,8 +413,9 @@ Update_Shell(){
 		if [[ ${yn} == [Yy] ]]; then
 			wget -N --no-check-certificate https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh && chmod +x Snell.sh
 			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ] !"
+			echo -e "3s后执行新脚本"
             sleep 3s
-            start_menu
+            bash Snell.sh
 		else
 			echo && echo "	已取消..." && echo
             sleep 3s
@@ -426,7 +427,7 @@ Update_Shell(){
         start_menu
 	fi
 	sleep 3s
-    	start_menu
+    	bash Snell.sh
 }
 before_start_menu() {
     echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
