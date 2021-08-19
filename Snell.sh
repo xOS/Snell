@@ -45,6 +45,20 @@ check_sys(){
     fi
 }
 
+Installation_dependency(){
+	gzip_ver=$(gzip -V)
+	if [[ -z ${gzip_ver} ]]; then
+		if [[ ${release} == "centos" ]]; then
+			yum update
+			yum install -y gzip wget curl unzip
+		else
+			apt-get update
+			apt-get install -y gzip wget curl unzip
+		fi
+	fi
+	\cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+}
+
 #检查系统内核版本
 sysArch() {
     uname=$(uname -m)
@@ -139,19 +153,6 @@ systemctl enable --now snell-server
 	echo -e "${Info} Snell 服务配置完成 !"
 }
 
-Installation_dependency(){
-	gzip_ver=$(gzip -V)
-	if [[ -z ${gzip_ver} ]]; then
-		if [[ ${release} == "centos" ]]; then
-			yum update
-			yum install -y gzip
-		else
-			apt-get update
-			apt-get install -y gzip
-		fi
-	fi
-	\cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-}
 Write_config(){
 	cat > ${CONF}<<-EOF
 [snell-server]
