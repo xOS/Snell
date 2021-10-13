@@ -46,13 +46,10 @@ check_sys(){
 }
 
 Installation_dependency(){
-	gzip_ver=$(gzip -V)
-	if [[ -z ${gzip_ver} ]]; then
-		if [[ ${release} == "centos" ]]; then
-			yum update && yum install gzip wget curl unzip -y
-		else
-			apt-get update && apt-get install gzip wget curl unzip -y
-		fi
+	if [[ ${release} == "centos" ]]; then
+		yum update && yum install gzip wget curl unzip -y
+	else
+		apt-get update && apt-get install gzip wget curl unzip -y
 	fi
 	\cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 }
