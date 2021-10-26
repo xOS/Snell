@@ -5,7 +5,7 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.6
+#	Version: 1.0.7
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
@@ -126,6 +126,7 @@ Download(){
 	chmod +x snell-server
 	mv snell-server "${FILE}"
 	echo "${new_ver}" > ${Now_ver_File}
+    echo -e "${Info} Snell 主程序下载安装完毕！"
 	fi
 }
 Service(){
@@ -434,29 +435,30 @@ exit_menu() {
 }
 start_menu(){
 clear
+check_root
 check_sys
 sysArch
 action=$1
 	echo && echo -e "  
-==================================
-Snell-Server 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
-==================================
+==============================
+Snell-Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
+==============================
  ${Green_font_prefix} 0.${Font_color_suffix} 升级脚本
-——————————————————————————————————
+——————————————————————————————
  ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell-Server
  ${Green_font_prefix} 2.${Font_color_suffix} 更新 Snell-Server
  ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Snell-Server
-——————————————————————————————————
+——————————————————————————————
  ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell-Server
  ${Green_font_prefix} 5.${Font_color_suffix} 停止 Snell-Server
  ${Green_font_prefix} 6.${Font_color_suffix} 重启 Snell-Server
-——————————————————————————————————
+——————————————————————————————
  ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
-——————————————————————————————————
+——————————————————————————————
  ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本
-==================================" && echo
+==============================" && echo
 	if [[ -e ${FILE} ]]; then
 		check_pid
 		if [[ ! -z "${PID}" ]]; then
