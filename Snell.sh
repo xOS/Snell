@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.7
+#	Version: 1.0.6
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.6"
+sh_ver="1.0.7"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -73,7 +73,7 @@ check_installed_status(){
 }
 
 check_pid(){
-	PID=$(ps -ef| grep "snell-server "| grep -v "grep" | grep -v "init.d" |grep -v "service" |awk '{print $2}')
+	PID=$(ps -ef| grep "snell-server "| grep -v "grep" |grep -v "service" |awk '{print $2}')
 }
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
@@ -157,7 +157,7 @@ ipv6 = ${ipv6}
 psk = ${psk}
 obfs = tls
 obfs-host = ${host}
-tfo = true
+tfo = ${tfo}
 version = 2
 EOF
 }
@@ -167,6 +167,7 @@ Read_config(){
 	port=$(cat ${CONF}|grep ':'|awk -F ':' '{print $NF}')
 	psk=$(cat ${CONF}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
 	host=$(cat ${CONF}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
+	tfo=$(cat ${CONF}|grep 'tfo = '|awk -F 'tfo = ' '{print $NF}')
 }
 Set_port(){
 	while true
@@ -177,9 +178,9 @@ Set_port(){
 		echo $((${port}+0)) &>/dev/null
 		if [[ $? -eq 0 ]]; then
 			if [[ ${port} -ge 1 ]] && [[ ${port} -le 65535 ]]; then
-				echo && echo "========================"
-				echo -e "	端口 : ${Red_background_prefix} ${port} ${Font_color_suffix}"
-				echo "========================" && echo
+				echo && echo "=============================="
+				echo -e "端口 : ${Red_background_prefix} ${port} ${Font_color_suffix}"
+				echo "==============================" && echo
 				break
 			else
 				echo "输入错误, 请输入正确的端口。"
@@ -191,42 +192,68 @@ Set_port(){
 }
 
 Set_ipv6(){
-	echo "是否开启 IPv6（true 或 false）?"
-	read -e -p "(默认: true):" ipv6
-	[[ -z "${ipv6}" ]] && ipv6=true
-	echo && echo "========================"
-	echo -e "	IPv6 开启状态 : ${Red_background_prefix} ${ipv6} ${Font_color_suffix}"
-	echo "========================" && echo
+	echo -e "是否开启 IPv6 ？
+==================================
+${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
+=================================="
+	read -e -p "(默认：1.开启)：" ipv6
+	[[ -z "${ipv6}" ]] && ipv6="1"
+	if [[ ${ipv6} == "1" ]]; then
+		ipv6=true
+	else
+		ipv6=false
+	fi
+	echo && echo "=================================="
+	echo -e "IPv6 开启状态：${Red_background_prefix} ${ipv6} ${Font_color_suffix}"
+	echo "==================================" && echo
 }
 
 Set_psk(){
 	echo "请输入 Snell 密钥 [0-9][a-z][A-Z]"
 	read -e -p "(默认: 随机生成):" psk
 	[[ -z "${psk}" ]] && psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
-	echo && echo "========================"
-	echo -e "	密钥 : ${Red_background_prefix} ${psk} ${Font_color_suffix}"
-	echo "========================" && echo
+	echo && echo "=============================="
+	echo -e "密钥 : ${Red_background_prefix} ${psk} ${Font_color_suffix}"
+	echo "==============================" && echo
 }
 
 Set_host(){
 	echo "请输入 Snell 域名 "
 	read -e -p "(默认: bing.com):" host
 	[[ -z "${host}" ]] && host=bing.com
-	echo && echo "========================"
+	echo && echo "=============================="
 	echo -e "	域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
-	echo "========================" && echo
+	echo "==============================" && echo
+}
+
+Set_tfo(){
+	echo -e "是否开启 TCP Fast Open ？
+==================================
+${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
+=================================="
+	read -e -p "(默认：1.开启)：" tfo
+	[[ -z "${tfo}" ]] && tfo="1"
+	if [[ ${tfo} == "1" ]]; then
+		tfo=true
+	else
+		tfo=false
+	fi
+	echo && echo "=================================="
+	echo -e "TCP Fast Open 开启状态：${Red_background_prefix} ${tfo} ${Font_color_suffix}"
+	echo "==================================" && echo
 }
 
 Set(){
 	check_installed_status
 	echo && echo -e "你要做什么？
-—————————————————————————
+==============================
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
  ${Green_font_prefix}2.${Font_color_suffix}  修改 密钥
  ${Green_font_prefix}3.${Font_color_suffix}  修改 域名
  ${Green_font_prefix}4.${Font_color_suffix}  开关 IPv6
-—————————————————————————
- ${Green_font_prefix}5.${Font_color_suffix}  修改 全部配置" && echo
+ ${Green_font_prefix}5.${Font_color_suffix}  开关 TFO
+==============================
+ ${Green_font_prefix}6.${Font_color_suffix}  修改 全部配置" && echo
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
 	if [[ "${modify}" == "1" ]]; then
@@ -235,6 +262,7 @@ Set(){
 		Set_psk=${psk}
 		Set_host=${host}
 		Set_ipv6=${ipv6}
+		Set_tfo=${tfo}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "2" ]]; then
@@ -243,6 +271,7 @@ Set(){
 		Set_port=${port}
 		Set_host=${host}
 		Set_ipv6=${ipv6}
+		Set_tfo=${tfo}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "3" ]]; then
@@ -251,6 +280,7 @@ Set(){
 		Set_port=${port}
 		psk=${psk}
 		Set_ipv6=${ipv6}
+		Set_tfo=${tfo}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "4" ]]; then
@@ -259,18 +289,29 @@ Set(){
 		Set_port=${port}
 		psk=${psk}
 		Set_ipv6
+		Set_tfo=${tfo}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "5" ]]; then
+		Read_config
+		Set_host=${host}
+		Set_port=${port}
+		psk=${psk}
+		Set_ipv6=${ipv6}
+		Set_tfo
+		Write_config
+		Restart
+	elif [[ "${modify}" == "6" ]]; then
 		Read_config
 		Set_port
 		Set_psk
 		Set_host
 		Set_ipv6
+		Set_tfo
 		Write_config
 		Restart
 	else
-		echo -e "${Error} 请输入正确的数字(1-5)" && exit 1
+		echo -e "${Error} 请输入正确的数字(1-6)" && exit 1
 	fi
     sleep 3s
     start_menu
@@ -283,6 +324,7 @@ Install(){
 	Set_psk
 	Set_host
 	Set_ipv6
+	Set_tfo
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
@@ -387,6 +429,7 @@ View(){
 	echo -e " 密钥\t: ${Green_font_prefix}${psk}${Font_color_suffix}"
 	echo -e " 域名\t: ${Green_font_prefix}${host}${Font_color_suffix}"
 	echo -e " IPv6\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
+	echo -e " TFO\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
 	before_start_menu
