@@ -172,6 +172,7 @@ Read_config(){
 Set_port(){
 	while true
 		do
+		echo -e "${Tip} 本步骤不涉及系统防火墙端口操作，请手动放行相应端口！"
 		echo -e "请输入 Snell 端口 [1-65535]"
 		read -e -p "(默认: 2345):" port
 		[[ -z "${port}" ]] && port="2345"
