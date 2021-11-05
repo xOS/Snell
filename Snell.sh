@@ -73,7 +73,7 @@ check_installed_status(){
 }
 
 check_pid(){
-	PID=$(ps -ef| grep "snell-server "| grep -v "grep" |grep -v "service" |awk '{print $2}')
+	PID=$(ps -ef| grep "snell-server "|awk '{print $2}')
 }
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
