@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.8
+#	Version: 1.0.9
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.8"
+sh_ver="1.0.9"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -119,6 +119,16 @@ Download(){
 	    chmod +x snell-server
 	    mv snell-server "${FILE}"
 	    echo "v${new_beta}" > ${Now_ver_File}
+		if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]];then
+		echo -e "${Info} 发现预览版 Snell ！开始下载预览版 Snell ……"
+		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
+        unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
+        [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+	    rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+	    chmod +x snell-server
+	    mv snell-server "${FILE}"
+	    echo "${new_ver}" > ${Now_ver_File}
+		fi
 	else
 	unzip -o "snell-server-${new_ver}-linux-${arch}.zip"
 	[[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip" && exit 1
