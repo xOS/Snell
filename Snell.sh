@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.9
+#	Version: 1.0.10
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.9"
+sh_ver="1.0.10"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -162,13 +162,13 @@ systemctl enable --now snell-server
 Write_config(){
 	cat > ${CONF}<<-EOF
 [snell-server]
-listen = 0.0.0.0:${port}
+listen = ::0:${port}
 ipv6 = ${ipv6}
 psk = ${psk}
-obfs = tls
+obfs = http
 obfs-host = ${host}
 tfo = ${tfo}
-version = 2
+version = 3
 EOF
 }
 Read_config(){
