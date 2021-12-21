@@ -165,7 +165,7 @@ Write_config(){
 listen = ::0:${port}
 ipv6 = ${ipv6}
 psk = ${psk}
-obfs = http
+obfs = tls
 obfs-host = ${host}
 tfo = ${tfo}
 version = 3
