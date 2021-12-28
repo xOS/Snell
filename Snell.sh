@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Version: 1.0.10
+#	Version: 1.1.0
 #	Author: 佩佩
 #	WebSite: https://nan.ge
 #=================================================
 
-sh_ver="1.0.10"
+sh_ver="1.1.0"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -78,6 +78,7 @@ check_pid(){
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
 	new_beta=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/b[0-9]//g')
+	new_rc=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/rc[0-9]//g')
 	[[ -z ${new_ver} ]] && echo -e "${Error} Snell 最新版本获取失败！" && exit 1
 	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
 }
@@ -92,7 +93,6 @@ check_ver_comparison(){
 			check_pid
 			[[ ! -z $PID ]] && kill -9 ${PID}
 			\cp "${CONF}" "/tmp/config.conf"
-			rm -rf ${FILE}
 			Download
 			mv "/tmp/config.conf" "${CONF}"
 			Start
@@ -101,7 +101,7 @@ check_ver_comparison(){
 		echo -e "${Info} 当前 Snell 已是最新版本 [ ${new_ver} ]" && exit 1
 	fi
 }
-Download(){
+Download() {
 	if [[ ! -e "${FOLDER}" ]]; then
 		mkdir "${FOLDER}"
 	else
@@ -109,34 +109,44 @@ Download(){
 	fi
 	echo -e "${Info} 默认开始下载稳定版 Snell ……"
 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
-	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 稳定版下载失败！准备请求测试版 Snell ……" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
-    	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]];then
-		echo -e "${Info} 发现测试版 Snell ！开始下载测试版 Snell ……"
+	[[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]] && echo -e "${Error} Snell 稳定版下载失败！试图请求测试版 Snell ……" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]]; then
+		echo -e "${Info} 试图请求测试版 Snell ……"
 		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-v${new_beta}-linux-${arch}.zip"
-        unzip -o "snell-server-v${new_beta}-linux-${arch}.zip"
-        [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
-	    rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
-	    chmod +x snell-server
-	    mv snell-server "${FILE}"
-	    echo "v${new_beta}" > ${Now_ver_File}
-		if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]];then
-		echo -e "${Info} 发现预览版 Snell ！开始下载预览版 Snell ……"
-		wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
-        unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
-        [[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
-	    rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
-	    chmod +x snell-server
-	    mv snell-server "${FILE}"
-	    echo "${new_ver}" > ${Now_ver_File}
+		unzip -o "snell-server-v${new_beta}-linux-${arch}.zip"
+		[[ ! -e "snell-server" ]] && echo -e "${Error} Snell Beta 压缩包解压失败 !" && rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
+		rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
+		chmod +x snell-server
+		mv snell-server "${FILE}"
+		echo "v${new_beta}" >${Now_ver_File}
+		if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]]; then
+			echo -e "${Info} 试图请求预览版 Snell ……"
+			wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
+			unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
+			[[ ! -e "snell-server" ]] && echo -e "${Error} Snell Beta 压缩包解压失败 !" && rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+			rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+			chmod +x snell-server
+			mv snell-server "${FILE}"
+			echo "${new_ver}" >${Now_ver_File}
+			if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]]; then
+			echo -e "${Info} 试图请求 RC 版 Snell ……"
+			wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_rc}-linux-${arch}.zip"
+			unzip -o "snell-server-${new_rc}-linux-${arch}.zip"
+			[[ ! -e "snell-server" ]] && echo -e "${Error} Snell RC 压缩包解压失败 !" && rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
+			rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
+			chmod +x snell-server
+			mv snell-server "${FILE}"
+			echo "${new_rc}" >${Now_ver_File}
+			fi
 		fi
 	else
-	unzip -o "snell-server-${new_ver}-linux-${arch}.zip"
-	[[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip" && exit 1
-	rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
-	chmod +x snell-server
-	mv snell-server "${FILE}"
-	echo "${new_ver}" > ${Now_ver_File}
-    echo -e "${Info} Snell 主程序下载安装完毕！"
+		unzip -o "snell-server-${new_ver}-linux-${arch}.zip"
+		[[ ! -e "snell-server" ]] && echo -e "${Error} Snell 压缩包解压失败 !" && rm -rf "snell-server-${new_ver}-linux-${arch}.zip" && exit 1
+		rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+		chmod +x snell-server
+		mv snell-server "${FILE}"
+		echo "${new_ver}" >${Now_ver_File}
+		echo -e "${Info} Snell 主程序下载安装完毕！"
 	fi
 }
 Service(){
@@ -151,7 +161,6 @@ Type=simple
 User=root
 Restart=on-failure
 RestartSec=5s
-DynamicUser=true
 ExecStart=/usr/local/bin/snell-server -c /etc/snell/config.conf
 [Install]
 WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
@@ -165,10 +174,10 @@ Write_config(){
 listen = ::0:${port}
 ipv6 = ${ipv6}
 psk = ${psk}
-obfs = tls
+obfs = ${obfs}
 obfs-host = ${host}
 tfo = ${tfo}
-version = 3
+version = ${ver}
 EOF
 }
 Read_config(){
@@ -176,8 +185,10 @@ Read_config(){
 	ipv6=$(cat ${CONF}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
 	port=$(cat ${CONF}|grep ':'|awk -F ':' '{print $NF}')
 	psk=$(cat ${CONF}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
+	obfs=$(cat ${CONF}|grep 'obfs = '|awk -F 'obfs = ' '{print $NF}')
 	host=$(cat ${CONF}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
 	tfo=$(cat ${CONF}|grep 'tfo = '|awk -F 'tfo = ' '{print $NF}')
+	ver=$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')
 }
 Set_port(){
 	while true
@@ -203,7 +214,7 @@ Set_port(){
 }
 
 Set_ipv6(){
-	echo -e "是否开启 IPv6 ？
+	echo -e "是否开启 IPv6 解析 ？
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
 =================================="
@@ -215,7 +226,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 		ipv6=false
 	fi
 	echo && echo "=================================="
-	echo -e "IPv6 开启状态：${Red_background_prefix} ${ipv6} ${Font_color_suffix}"
+	echo -e "IPv6 解析 开启状态：${Red_background_prefix} ${ipv6} ${Font_color_suffix}"
 	echo "==================================" && echo
 }
 
@@ -226,6 +237,48 @@ Set_psk(){
 	echo && echo "=============================="
 	echo -e "密钥 : ${Red_background_prefix} ${psk} ${Font_color_suffix}"
 	echo "==============================" && echo
+}
+
+Set_obfs(){
+	echo -e "配置 OBFS
+==================================
+${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_color_suffix} HTTP ${Green_font_prefix} 3.${Font_color_suffix} 关闭
+=================================="
+	read -e -p "(默认：1.TLS)：" obfs
+	[[ -z "${obfs}" ]] && obfs="1"
+	if [[ ${obfs} == "1" ]]; then
+		obfs=tls
+	elif [[ ${obfs} == "2" ]]; then
+		obfs=http
+	elif [[ ${obfs} == "3" ]]; then
+		obfs=off
+	else
+		obfs=tls
+	fi
+	echo && echo "=================================="
+	echo -e "OBFS 状态：${Red_background_prefix} ${obfs} ${Font_color_suffix}"
+	echo "==================================" && echo
+}
+
+Set_ver(){
+	echo -e "配置 Snell 协议版本 
+==================================
+${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3
+=================================="
+	read -e -p "(默认：2.v2)：" ver
+	[[ -z "${ver}" ]] && ver="2"
+	if [[ ${ver} == "1" ]]; then
+		ver=1
+	elif [[ ${ver} == "2" ]]; then
+		ver=2
+	elif [[ ${ver} == "3" ]]; then
+		ver=3
+	else
+		ver=2
+	fi
+	echo && echo "=================================="
+	echo -e "Snell 协议版本：${Red_background_prefix} ${ver} ${Font_color_suffix}"
+	echo "==================================" && echo
 }
 
 Set_host(){
@@ -260,69 +313,105 @@ Set(){
 ==============================
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
  ${Green_font_prefix}2.${Font_color_suffix}  修改 密钥
- ${Green_font_prefix}3.${Font_color_suffix}  修改 域名
- ${Green_font_prefix}4.${Font_color_suffix}  开关 IPv6
- ${Green_font_prefix}5.${Font_color_suffix}  开关 TFO
+ ${Green_font_prefix}3.${Font_color_suffix}  配置 OBFS
+ ${Green_font_prefix}4.${Font_color_suffix}  配置 OBFS 域名
+ ${Green_font_prefix}5.${Font_color_suffix}  开关 IPv6 解析
+ ${Green_font_prefix}6.${Font_color_suffix}  开关 TFO
+ ${Green_font_prefix}7.${Font_color_suffix}  配置 Snell 协议版本
 ==============================
- ${Green_font_prefix}6.${Font_color_suffix}  修改 全部配置" && echo
+ ${Green_font_prefix}8.${Font_color_suffix}  修改 全部配置" && echo
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
 	if [[ "${modify}" == "1" ]]; then
 		Read_config
 		Set_port
 		Set_psk=${psk}
+		Set_obfs=${obfs}
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "2" ]]; then
 		Read_config
-		Set_psk
 		Set_port=${port}
+		Set_psk
+		Set_obfs=${obfs}
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "3" ]]; then
 		Read_config
-		Set_host
 		Set_port=${port}
-		psk=${psk}
+		Set_psk=${psk}
+		Set_obfs
+		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "4" ]]; then
 		Read_config
-		Set_host=${host}
 		Set_port=${port}
-		psk=${psk}
-		Set_ipv6
+		Set_psk=${psk}
+		Set_obfs=${obfs}
+		Set_host
+		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "5" ]]; then
 		Read_config
-		Set_host=${host}
 		Set_port=${port}
-		psk=${psk}
-		Set_ipv6=${ipv6}
-		Set_tfo
+		Set_psk=${psk}
+		Set_obfs=${obfs}
+		Set_host=${host}
+		Set_ipv6
+		Set_tfo=${tfo}
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "6" ]]; then
 		Read_config
+		Set_port=${port}
+		Set_psk=${psk}
+		Set_obfs=${obfs}
+		Set_host=${host}
+		Set_ipv6=${ipv6}
+		Set_tfo
+		Set_ver=${ver}
+		Write_config
+		Restart
+	elif [[ "${modify}" == "7" ]]; then
+		Read_config
+		Set_port=${port}
+		Set_psk=${psk}
+		Set_obfs=${obfs}
+		Set_host=${host}
+		Set_ipv6=${ipv6}
+		Set_tfo=${tfo}
+		Set_ver
+		Write_config
+		Restart
+	elif [[ "${modify}" == "8" ]]; then
+		Read_config
 		Set_port
 		Set_psk
+		Set_obfs
 		Set_host
 		Set_ipv6
 		Set_tfo
+		Set_ver
 		Write_config
 		Restart
 	else
-		echo -e "${Error} 请输入正确的数字(1-6)" && exit 1
+		echo -e "${Error} 请输入正确的数字(1-8)" && exit 1
 	fi
     sleep 3s
     start_menu
@@ -333,9 +422,11 @@ Install(){
 	echo -e "${Info} 开始设置 配置..."
 	Set_port
 	Set_psk
+	Set_obfs
 	Set_host
 	Set_ipv6
 	Set_tfo
+	Set_ver
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
@@ -438,9 +529,11 @@ View(){
 	[[ "${ip6}" != "IPv6_Error" ]] && echo -e " 地址\t: ${Green_font_prefix}${ip6}${Font_color_suffix}"
 	echo -e " 端口\t: ${Green_font_prefix}${port}${Font_color_suffix}"
 	echo -e " 密钥\t: ${Green_font_prefix}${psk}${Font_color_suffix}"
+	echo -e " OBFS\t: ${Green_font_prefix}${obfs}${Font_color_suffix}"
 	echo -e " 域名\t: ${Green_font_prefix}${host}${Font_color_suffix}"
 	echo -e " IPv6\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
 	echo -e " TFO\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
+	echo -e " VER\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
 	before_start_menu
