@@ -9,7 +9,7 @@ export PATH
 #	WebSite: http://qste.com
 #=================================================
 
-sh_ver="1.1.1"
+sh_ver="1.1.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -50,6 +50,8 @@ Installation_dependency(){
 	else
 		apt-get update && apt-get install gzip wget curl unzip -y
 	fi
+	sysctl -w net.core.rmem_max=26214400
+	sysctl -w net.core.rmem_default=26214400
 	\cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 }
 
