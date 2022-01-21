@@ -9,7 +9,7 @@ export PATH
 #	WebSite: http://qste.com
 #=================================================
 
-sh_ver="1.1.3"
+sh_ver="1.1.4"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -143,7 +143,7 @@ beta1_Download() {
 		rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
 		chmod +x snell-server
 		mv snell-server "${FILE}"
-		echo "v${new_beta}" >${Now_ver_File}
+		echo "${new_ver}" >${Now_ver_File}
 		echo -e "${Info} Snell 主程序下载安装完毕！"
 		return 0
 	fi
@@ -189,7 +189,7 @@ released_Download() {
 		rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
 		chmod +x snell-server
 		mv snell-server "${FILE}"
-		echo "${new_rc}" >${Now_ver_File}
+		echo "${new_ver}" >${Now_ver_File}
 		echo -e "${Info} Snell 主程序下载安装完毕！"
 		return 0
 	fi
