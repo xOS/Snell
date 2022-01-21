@@ -9,7 +9,7 @@ export PATH
 #	WebSite: http://qste.com
 #=================================================
 
-sh_ver="1.1.2"
+sh_ver="1.1.3"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -348,7 +348,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_co
 Set_host(){
 	echo "请输入 Snell 域名 "
 	read -e -p "(默认: bing.com):" host
-	[[ -z "${host}" ]] && host=bing.com
+	[[ -z "${host}" ]] && host=www.bing.com
 	echo && echo "=============================="
 	echo -e "	域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
 	echo "==============================" && echo
