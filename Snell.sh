@@ -5,11 +5,11 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell 管理脚本
-#	Author: 佩佩
-#	WebSite: http://qste.com
+#	Author: 翠花
+#	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.1.4"
+sh_ver="1.2.0"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -46,9 +46,9 @@ check_sys(){
 
 Installation_dependency(){
 	if [[ ${release} == "centos" ]]; then
-		yum update && yum install gzip wget curl unzip -y
+		yum update && yum install gzip wget curl unzip jq -y
 	else
-		apt-get update && apt-get install gzip wget curl unzip -y
+		apt-get update && apt-get install gzip wget curl unzip jq -y
 	fi
 	sysctl -w net.core.rmem_max=26214400
 	sysctl -w net.core.rmem_default=26214400
@@ -77,9 +77,10 @@ check_pid(){
 	PID=$(ps -ef|grep "snell-server "|awk '{print $2}')
 }
 check_new_ver(){
-	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
-	new_beta=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/b[0-9]//g')
-	new_rc=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/rc[0-9]//g')
+	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| jq -r '[.[] | select(.prerelease == false) | select(.draft == false) | .tag_name] | .[0]')
+	# new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
+	# new_beta=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/b[0-9]//g')
+	# new_rc=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/rc[0-9]//g')
 	[[ -z ${new_ver} ]] && echo -e "${Error} Snell 最新版本获取失败！" && exit 1
 	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
 }
@@ -120,76 +121,99 @@ stable_Download() {
 		rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
 		chmod +x snell-server
 		mv snell-server "${FILE}"
-		echo "${new_ver}" >${Now_ver_File}
+		echo "${new_ver}" > ${Now_ver_File}
 		echo -e "${Info} Snell 主程序下载安装完毕！"
 		return 0
 	fi
 }
 
-beta1_Download() {
-	echo -e "${Info} 试图请求测试版 Snell ……"
-	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-v${new_beta}-linux-${arch}.zip"
-	if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Beta 下载失败！"
-		return 1 && exit 1
-	else
-		unzip -o "snell-server-v${new_beta}-linux-${arch}.zip"
-	fi
-	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Beta 解压失败 !"
-		echo -e "${Error} Snell Beta 安装失败 !"
-		return 1 && exit 1
-	else
-		rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
-		chmod +x snell-server
-		mv snell-server "${FILE}"
-		echo "${new_ver}" >${Now_ver_File}
-		echo -e "${Info} Snell 主程序下载安装完毕！"
-		return 0
-	fi
-}
+# beta1_Download() {
+# 	echo -e "${Info} 试图请求测试版 Snell ……"
+# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-v${new_beta}-linux-${arch}.zip"
+# 	if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]]; then
+# 		echo -e "${Error} Snell Beta 下载失败！"
+# 		return 1 && exit 1
+# 	else
+# 		unzip -o "snell-server-v${new_beta}-linux-${arch}.zip"
+# 	fi
+# 	if [[ ! -e "snell-server" ]]; then
+# 		echo -e "${Error} Snell Beta 解压失败 !"
+# 		echo -e "${Error} Snell Beta 安装失败 !"
+# 		return 1 && exit 1
+# 	else
+# 		rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
+# 		chmod +x snell-server
+# 		mv snell-server "${FILE}"
+# 		echo "${new_ver}" > ${Now_ver_File}
+# 		echo -e "${Info} Snell 主程序下载安装完毕！"
+# 		return 0
+# 	fi
+# }
 
-beta2_Download() {
-	echo -e "${Info} 试图请求预览版 Snell ……"
-	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
-	if [[ ! -e "snell-server-${new_beta}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Beta 下载失败！"
-		return 1 && exit 1
-	else
-		unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
-	fi
-	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Beta 解压失败 !"
-		echo -e "${Error} Snell Beta 安装失败 !"
-		return 1 && exit 1
-	else
-		rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
-		chmod +x snell-server
-		mv snell-server "${FILE}"
-		echo -e "${new_ver}" >${Now_ver_File}
-		echo -e "${Info} Snell 主程序下载安装完毕！"
-		return 0
-	fi
-}
+# beta2_Download() {
+# 	echo -e "${Info} 试图请求预览版 Snell ……"
+# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
+# 	if [[ ! -e "snell-server-${new_beta}-linux-${arch}.zip" ]]; then
+# 		echo -e "${Error} Snell Beta 下载失败！"
+# 		return 1 && exit 1
+# 	else
+# 		unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
+# 	fi
+# 	if [[ ! -e "snell-server" ]]; then
+# 		echo -e "${Error} Snell Beta 解压失败 !"
+# 		echo -e "${Error} Snell Beta 安装失败 !"
+# 		return 1 && exit 1
+# 	else
+# 		rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
+# 		chmod +x snell-server
+# 		mv snell-server "${FILE}"
+# 		echo -e "${new_ver}" > ${Now_ver_File}
+# 		echo -e "${Info} Snell 主程序下载安装完毕！"
+# 		return 0
+# 	fi
+# }
 
-released_Download() {
-	echo -e "${Info} 试图请求 RC 版 Snell ……"
-	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_rc}-linux-${arch}.zip"
-	if [[ ! -e "snell-server-${new_rc}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell RC下载失败！"
+# released_Download() {
+# 	echo -e "${Info} 试图请求 RC 版 Snell ……"
+# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_rc}-linux-${arch}.zip"
+# 	if [[ ! -e "snell-server-${new_rc}-linux-${arch}.zip" ]]; then
+# 		echo -e "${Error} Snell RC下载失败！"
+# 		return 1 && exit 1
+# 	else
+# 		unzip -o "snell-server-${new_rc}-linux-${arch}.zip"
+# 	fi
+# 	if [[ ! -e "snell-server" ]]; then
+# 		echo -e "${Error} Snell RC 解压失败 !"
+# 		echo -e "${Error} Snell RC 安装失败 !"
+# 		return 1 && exit 1
+# 	else
+# 		rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
+# 		chmod +x snell-server
+# 		mv snell-server "${FILE}"
+# 		echo "${new_ver}" > ${Now_ver_File}
+# 		echo -e "${Info} Snell 主程序下载安装完毕！"
+# 		return 0
+# 	fi
+# }
+# 备用源
+backup_Download() {
+	echo -e "${Info} 试图请求 备份源 Snell ……"
+	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
+	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
+		echo -e "${Error} Snell 备份源 下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-${new_rc}-linux-${arch}.zip"
+		unzip -o "snell-server-v3.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell RC 解压失败 !"
-		echo -e "${Error} Snell RC 安装失败 !"
+		echo -e "${Error} Snell 备份源 解压失败 !"
+		echo -e "${Error} Snell 备份源 安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
+		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
 		chmod +x snell-server
 		mv snell-server "${FILE}"
-		echo "${new_ver}" >${Now_ver_File}
+		echo "v3.0.1" > ${Now_ver_File}
 		echo -e "${Info} Snell 主程序下载安装完毕！"
 		return 0
 	fi
@@ -202,14 +226,17 @@ Download() {
 		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
 	stable_Download
+	# if [[ $? != 0 ]]; then
+	# 	beta1_Download
+	# fi
+	# if [[ $? != 0 ]]; then
+	# 	beta2_Download
+	# fi
+	# if [[ $? != 0 ]]; then
+	# 	released_Download
+	# fi
 	if [[ $? != 0 ]]; then
-		beta1_Download
-	fi
-	if [[ $? != 0 ]]; then
-		beta2_Download
-	fi
-	if [[ $? != 0 ]]; then
-		released_Download
+		backup_Download
 	fi
 }
 
