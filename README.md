@@ -4,7 +4,7 @@
 
 ## 使用
 ```bash
-wget -N --no-check-certificate https://git.io/Snell.sh && chmod +x Snell.sh && ./Snell.sh
+wget -NO snell.sh --no-check-certificate https://git.io/Snell.sh && chmod +x snell.sh && ./snell.sh
 ```
 
 ## 注意
