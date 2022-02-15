@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.2.1"
+sh_ver="1.2.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -73,9 +73,10 @@ check_installed_status(){
 	[[ ! -e ${FILE} ]] && echo -e "${Error} Snell 没有安装，请检查 !" && exit 1
 }
 
-check_pid(){
-	PID=$(ps -ef|grep "snell-server "|awk '{print $2}')
+check_status(){
+	status=`systemctl status snell-server | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1`
 }
+
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| jq -r '[.[] | select(.prerelease == false) | select(.draft == false) | .tag_name] | .[0]')
 	# new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
@@ -92,8 +93,8 @@ check_ver_comparison(){
 		read -e -p "是否更新 ? [Y/n] :" yn
 		[[ -z "${yn}" ]] && yn="y"
 		if [[ $yn == [Yy] ]]; then
-			check_pid
-			[[ ! -z $PID ]] && kill -9 ${PID}
+			check_status
+			[[ "$status" == "running" ]] && systemctl stop snell-server
 			\cp "${CONF}" "/tmp/config.conf"
 			Download
 			mv "/tmp/config.conf" "${CONF}"
@@ -534,18 +535,18 @@ Install(){
 }
 Start(){
 	check_installed_status
-	check_pid
-	[[ ! -z ${PID} ]] && echo -e "${Info} Snell 已在运行 !" && exit 1
+	check_status
+	[[ "$status" == "running" ]] && echo -e "${Info} Snell 已在运行 !" && exit 1
 	systemctl start snell-server
-	check_pid
-	[[ ! -z ${PID} ]] && echo -e "${Info} Snell 启动成功 !"
+	check_status
+	[[ "$status" == "running" ]] && echo -e "${Info} Snell 启动成功 !"
     sleep 3s
     start_menu
 }
 Stop(){
 	check_installed_status
-	check_pid
-	[[ -z ${PID} ]] && echo -e "${Error} Snell 没有运行，请检查 !" && exit 1
+	check_status
+	[[ !"$status" == "running" ]] && echo -e "${Error} Snell 没有运行，请检查 !" && exit 1
 	systemctl stop snell-server
 	echo -e "${Info} Snell 停止成功 !"
     sleep 3s
@@ -553,11 +554,11 @@ Stop(){
 }
 Restart(){
 	check_installed_status
-	check_pid
-	[[ ! -z ${PID} ]] && systemctl stop snell-server
+	check_status
+	[[ "$status" == "running" ]] && systemctl stop snell-server
 	systemctl restart snell-server
-	check_pid
-	[[ ! -z ${PID} ]]
+	check_status
+	[[ "$status" == "running" ]]
 	echo -e "${Info} Snell 重启完毕!"
 	sleep 3s
 	View
@@ -578,8 +579,7 @@ Uninstall(){
 	read -e -p "(默认: n):" unyn
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
-		# check_pid
-		# [[ ! -z $PID ]] && kill -9 ${PID}
+		systemctl stop snell-server
         systemctl disable snell-server
 		rm -rf "${FILE}"
 		echo && echo "Snell 卸载完成 !" && echo
@@ -698,8 +698,8 @@ Snell-Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本
 ==============================" && echo
 	if [[ -e ${FILE} ]]; then
-		check_pid
-		if [[ ! -z "${PID}" ]]; then
+		check_status
+		if [[ "$status" == "running" ]]; then
 			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} 并 ${Green_font_prefix}已启动${Font_color_suffix}"
 		else
 			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} 但 ${Red_font_prefix}未启动${Font_color_suffix}"
