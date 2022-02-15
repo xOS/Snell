@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.2.2"
+sh_ver="1.2.3"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -555,10 +555,7 @@ Stop(){
 Restart(){
 	check_installed_status
 	check_status
-	[[ "$status" == "running" ]] && systemctl stop snell-server
 	systemctl restart snell-server
-	check_status
-	[[ "$status" == "running" ]]
 	echo -e "${Info} Snell 重启完毕!"
 	sleep 3s
 	View
