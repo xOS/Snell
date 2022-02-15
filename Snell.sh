@@ -554,7 +554,6 @@ Stop(){
 }
 Restart(){
 	check_installed_status
-	check_status
 	systemctl restart snell-server
 	echo -e "${Info} Snell 重启完毕!"
 	sleep 3s
