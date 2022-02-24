@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.2.4"
+sh_ver="1.2.5"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -199,7 +199,7 @@ stable_Download() {
 # 备用源
 backup_Download() {
 	echo -e "${Info} 试图请求 备份源 Snell Server ……"
-	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
+	wget --no-check-certificate -N "https://github.com/xOS/Others/blob/master/snell/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip?raw=true"
 	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server 备份源 下载失败！"
 		return 1 && exit 1
