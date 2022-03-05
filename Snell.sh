@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.3.5"
+sh_ver="1.3.6"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -442,7 +442,7 @@ Set(){
  ${Green_font_prefix}3.${Font_color_suffix}  配置 OBFS
  ${Green_font_prefix}4.${Font_color_suffix}  配置 OBFS 域名
  ${Green_font_prefix}5.${Font_color_suffix}  开关 IPv6 解析
- ${Green_font_prefix}6.${Font_color_suffix}  开关 TFO
+ ${Green_font_prefix}6.${Font_color_suffix}  开关 TCP Fast Open
  ${Green_font_prefix}7.${Font_color_suffix}  配置 Snell Server 协议版本
 ==============================
  ${Green_font_prefix}8.${Font_color_suffix}  修改 全部配置" && echo
