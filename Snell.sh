@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.3.7"
+sh_ver="1.3.8"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -703,9 +703,7 @@ before_start_menu() {
     echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
     start_menu
 }
-exit_menu() {
-    exit 1
-}
+
 start_menu(){
 clear
 check_root
@@ -776,7 +774,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 		Status
 		;;
 		10)
-		exit_menu
+		exit 1
 		;;
 		*)
 		echo "请输入正确数字 [0-10]"
