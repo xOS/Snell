@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.3.9"
+sh_ver="1.4.0"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -72,15 +72,9 @@ sysArch() {
 
 #开启系统 TCP Fast Open
 enable_systfo() {
-	sysctl="/etc/sysctl.conf"
-	str="net.ipv4.tcp_fastopen=3"
-	value=$(grep -c "$str" $sysctl)
 	kernel=$(uname -r | awk -F . '{print $1}')
 	if [ "$kernel" -ge 3 ]; then
 		echo 3 >/proc/sys/net/ipv4/tcp_fastopen
-		if [[ $value -ne 1 ]]; then
-			echo "$str" >> $sysctl && sysctl -p >/dev/null 2>&1
-		fi
 		[[ ! -e $Local ]] && echo "fs.file-max = 51200
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
@@ -117,9 +111,6 @@ check_status(){
 
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| jq -r '[.[] | select(.prerelease == false) | select(.draft == false) | .tag_name] | .[0]')
-	# new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g')
-	# new_beta=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/b[0-9]//g')
-	# new_rc=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/rc[0-9]//g')
 	[[ -z ${new_ver} ]] && echo -e "${Error} Snell Server 最新版本获取失败！" && exit 1
 	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
 }
@@ -166,74 +157,6 @@ stable_Download() {
 	fi
 }
 
-# beta1_Download() {
-# 	echo -e "${Info} 试图请求测试版 Snell Server ……"
-# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-v${new_beta}-linux-${arch}.zip"
-# 	if [[ ! -e "snell-server-v${new_beta}-linux-${arch}.zip" ]]; then
-# 		echo -e "${Error} Snell Server Beta 下载失败！"
-# 		return 1 && exit 1
-# 	else
-# 		unzip -o "snell-server-v${new_beta}-linux-${arch}.zip"
-# 	fi
-# 	if [[ ! -e "snell-server" ]]; then
-# 		echo -e "${Error} Snell Server Beta 解压失败 !"
-# 		echo -e "${Error} Snell Server Beta 安装失败 !"
-# 		return 1 && exit 1
-# 	else
-# 		rm -rf "snell-server-v${new_beta}-linux-${arch}.zip"
-# 		chmod +x snell-server
-# 		mv snell-server "${FILE}"
-# 		echo "${new_ver}" > ${Now_ver_File}
-# 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-# 		return 0
-# 	fi
-# }
-
-# beta2_Download() {
-# 	echo -e "${Info} 试图请求预览版 Snell Server ……"
-# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_beta}-linux-${arch}.zip"
-# 	if [[ ! -e "snell-server-${new_beta}-linux-${arch}.zip" ]]; then
-# 		echo -e "${Error} Snell Server Beta 下载失败！"
-# 		return 1 && exit 1
-# 	else
-# 		unzip -o "snell-server-${new_beta}-linux-${arch}.zip"
-# 	fi
-# 	if [[ ! -e "snell-server" ]]; then
-# 		echo -e "${Error} Snell Server Beta 解压失败 !"
-# 		echo -e "${Error} Snell Server Beta 安装失败 !"
-# 		return 1 && exit 1
-# 	else
-# 		rm -rf "snell-server-${new_beta}-linux-${arch}.zip"
-# 		chmod +x snell-server
-# 		mv snell-server "${FILE}"
-# 		echo -e "${new_ver}" > ${Now_ver_File}
-# 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-# 		return 0
-# 	fi
-# }
-
-# released_Download() {
-# 	echo -e "${Info} 试图请求 RC 版 Snell Server ……"
-# 	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_rc}-linux-${arch}.zip"
-# 	if [[ ! -e "snell-server-${new_rc}-linux-${arch}.zip" ]]; then
-# 		echo -e "${Error} Snell Server RC下载失败！"
-# 		return 1 && exit 1
-# 	else
-# 		unzip -o "snell-server-${new_rc}-linux-${arch}.zip"
-# 	fi
-# 	if [[ ! -e "snell-server" ]]; then
-# 		echo -e "${Error} Snell Server RC 解压失败 !"
-# 		echo -e "${Error} Snell Server RC 安装失败 !"
-# 		return 1 && exit 1
-# 	else
-# 		rm -rf "snell-server-${new_rc}-linux-${arch}.zip"
-# 		chmod +x snell-server
-# 		mv snell-server "${FILE}"
-# 		echo "${new_ver}" > ${Now_ver_File}
-# 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-# 		return 0
-# 	fi
-# }
 # 备用源
 backup_Download() {
 	echo -e "${Info} 试图请求 备份源 Snell Server ……"
@@ -265,15 +188,6 @@ Download() {
 		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
 	stable_Download
-	# if [[ $? != 0 ]]; then
-	# 	beta1_Download
-	# fi
-	# if [[ $? != 0 ]]; then
-	# 	beta2_Download
-	# fi
-	# if [[ $? != 0 ]]; then
-	# 	released_Download
-	# fi
 	if [[ $? != 0 ]]; then
 		backup_Download
 	fi
