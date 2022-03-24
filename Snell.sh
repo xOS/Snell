@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.4.1"
+sh_ver="1.4.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -123,7 +123,7 @@ check_ver_comparison(){
 		[[ -z "${yn}" ]] && yn="y"
 		if [[ $yn == [Yy] ]]; then
 			check_status
-			[[ "$status" == "running" ]] && systemctl stop snell-server
+			# [[ "$status" == "running" ]] && systemctl stop snell-server
 			\cp "${CONF}" "/tmp/config.conf"
 			Download
 			mv -f "/tmp/config.conf" "${CONF}"
