@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.4.0"
+sh_ver="1.4.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -126,7 +126,7 @@ check_ver_comparison(){
 			[[ "$status" == "running" ]] && systemctl stop snell-server
 			\cp "${CONF}" "/tmp/config.conf"
 			Download
-			mv "/tmp/config.conf" "${CONF}"
+			mv -f "/tmp/config.conf" "${CONF}"
 			Start
 		fi
 	else
@@ -150,7 +150,7 @@ stable_Download() {
 	else
 		rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
 		chmod +x snell-server
-		mv snell-server "${FILE}"
+		mv -f snell-server "${FILE}"
 		echo "${new_ver}" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
@@ -174,7 +174,7 @@ backup_Download() {
 	else
 		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
 		chmod +x snell-server
-		mv snell-server "${FILE}"
+		mv -f snell-server "${FILE}"
 		echo "v3.0.1" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
@@ -184,8 +184,8 @@ backup_Download() {
 Download() {
 	if [[ ! -e "${FOLDER}" ]]; then
 		mkdir "${FOLDER}"
-	else
-		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
+	# else
+		# [[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
 	stable_Download
 	if [[ $? != 0 ]]; then
