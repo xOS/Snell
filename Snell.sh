@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://www.nange.cn
 #=================================================
 
-sh_ver="1.4.3"
+sh_ver="1.4.4"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -518,6 +518,7 @@ Update(){
 	check_installed_status
 	check_new_ver
 	check_ver_comparison
+	systemctl restart snell-server
 	echo -e "${Info} Snell Server 更新完毕 !"
     sleep 3s
     start_menu
