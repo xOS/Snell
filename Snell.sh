@@ -6,10 +6,10 @@ export PATH
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell Server 管理脚本
 #	Author: 翠花
-#	WebSite: https://www.nange.cn
+#	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.4.5"
+sh_ver="1.4.6"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -181,6 +181,29 @@ backup_Download() {
 	fi
 }
 
+Download_beta(){
+	echo -e "${Info} 试图请求 测试版 Snell Server ……"
+	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.0.0-linux-${arch}.zip"
+	if [[ ! -e "snell-server-v4.0.0-linux-${arch}.zip" ]]; then
+		echo -e "${Error} Snell Server 测试版 下载失败！"
+		return 1 && exit 1
+	else
+		unzip -o "snell-server-v4.0.0-linux-${arch}.zip"
+	fi
+	if [[ ! -e "snell-server" ]]; then
+		echo -e "${Error} Snell Server 测试版 解压失败 !"
+		echo -e "${Error} Snell Server 测试版 安装失败 !"
+		return 1 && exit 1
+	else
+		rm -rf "snell-server-v4.0.0-linux-${arch}.zip"
+		chmod +x snell-server
+		mv -f snell-server "${FILE}"
+		echo "v4.0.0" > ${Now_ver_File}
+		echo -e "${Info} Snell Server 主程序下载安装完毕！"
+		return 0
+	fi
+}
+
 Download() {
 	if [[ ! -e "${FOLDER}" ]]; then
 		mkdir "${FOLDER}"
@@ -191,6 +214,16 @@ Download() {
 	if [[ $? != 0 ]]; then
 		backup_Download
 	fi
+}
+
+# 测试版下载
+Beta_install() {
+	if [[ ! -e "${FOLDER}" ]]; then
+		mkdir "${FOLDER}"
+	# else
+		# [[ -e "${FILE}" ]] && rm -rf "${FILE}"
+	fi
+	Download_beta
 }
 
 Service(){
@@ -308,9 +341,9 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 Set_ver(){
 	echo -e "配置 Snell Server 协议版本 
 ==================================
-${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3
+${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 (v4专用，其他版本勿选！)
 =================================="
-	read -e -p "(默认：2.v2)：" ver
+	read -e -p "(默认：3.v3)：" ver
 	[[ -z "${ver}" ]] && ver="2"
 	if [[ ${ver} == "1" ]]; then
 		ver=1
@@ -318,8 +351,10 @@ ${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_co
 		ver=2
 	elif [[ ${ver} == "3" ]]; then
 		ver=3
+	elif [[ ${ver} == "4" ]]; then
+		ver=4
 	else
-		ver=2
+		ver=3
 	fi
 	echo && echo "=================================="
 	echo -e "Snell Server 协议版本：${Red_background_prefix} ${ver} ${Font_color_suffix}"
@@ -462,6 +497,7 @@ Set(){
     sleep 3s
     start_menu
 }
+
 Install(){
 	check_root
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
@@ -487,6 +523,34 @@ Install(){
     sleep 3s
     start_menu
 }
+
+# 安装测试版
+Install_beta(){
+	check_root
+	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 ,请先卸载旧版再安装新版!" && exit 1
+	echo -e "${Info} 开始设置 配置..."
+	Set_port
+	Set_psk
+	Set_obfs
+	Set_host
+	Set_ipv6
+	Set_tfo
+	Set_ver
+	echo -e "${Info} 开始安装/配置 依赖..."
+	Installation_dependency
+	echo -e "${Info} 开始下载/安装..."
+	# check_new_ver
+	Beta_install
+	echo -e "${Info} 开始安装 服务脚本..."
+	Service
+	echo -e "${Info} 开始写入 配置文件..."
+	Write_config
+	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
+	Start
+    sleep 3s
+    start_menu
+}
+
 Start(){
 	check_installed_status
 	check_status
@@ -629,10 +693,10 @@ action=$1
 ==============================
 Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 ==============================
- ${Green_font_prefix} 0.${Font_color_suffix} 升级脚本
+ ${Green_font_prefix} 0.${Font_color_suffix} 更新脚本
 ——————————————————————————————
  ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server
- ${Green_font_prefix} 2.${Font_color_suffix} 更新 Snell Server
+ ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server
  ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Snell Server
 ——————————————————————————————
  ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
@@ -643,7 +707,9 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本
+ ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版
+——————————————————————————————
+ ${Green_font_prefix} 11.${Font_color_suffix} 退出脚本
 ==============================" && echo
 	if [[ -e ${FILE} ]]; then
 		check_status
@@ -689,10 +755,13 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 		Status
 		;;
 		10)
+		Install_beta
+		;;
+		11)
 		exit 1
 		;;
 		*)
-		echo "请输入正确数字 [0-10]"
+		echo "请输入正确数字 [0-11]"
 		;;
 	esac
 }
