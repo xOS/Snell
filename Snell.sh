@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.4.7"
+sh_ver="1.4.8"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -111,7 +111,9 @@ check_status(){
 
 check_new_ver(){
 	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| jq -r '[.[] | select(.prerelease == false) | select(.draft == false) | .tag_name] | .[0]')
-	[[ -z ${new_ver} ]] && echo -e "${Error} Snell Server 最新版本获取失败！" && exit 1
+	[[ -z ${new_ver} ]] && echo -e "${Error} Snell Server 最新版本获取失败！" 
+	new_ver="v3.0.1"
+	echo -e "${Info} 官方源获取版本失败，请求备用源最新版本为 [ ${new_ver} ]"
 	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
 }
 
@@ -695,8 +697,8 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 ==============================
  ${Green_font_prefix} 0.${Font_color_suffix} 更新脚本
 ——————————————————————————————
- ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server
- ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server
+ ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server [v3]
+ ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server [v3]
  ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Snell Server
 ——————————————————————————————
  ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
@@ -707,7 +709,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版
+ ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版 [v4]
 ——————————————————————————————
  ${Green_font_prefix} 11.${Font_color_suffix} 退出脚本
 ==============================" && echo
