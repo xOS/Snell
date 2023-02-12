@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.4.8"
+sh_ver="1.4.9"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -697,8 +697,8 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 ==============================
  ${Green_font_prefix} 0.${Font_color_suffix} 更新脚本
 ——————————————————————————————
- ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server [v3]
- ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server [v3]
+ ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server${Yellow_font_prefix}[v3]${Font_color_suffix}
+ ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server${Yellow_font_prefix}[v3]${Font_color_suffix}
  ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Snell Server
 ——————————————————————————————
  ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
@@ -709,7 +709,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版 [v4]
+ ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版${Yellow_font_prefix}[v4]${Font_color_suffix}
 ——————————————————————————————
  ${Green_font_prefix} 11.${Font_color_suffix} 退出脚本
 ==============================" && echo
