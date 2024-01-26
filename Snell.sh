@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.4.9"
+sh_ver="1.5.0"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -109,69 +109,43 @@ check_status(){
 	status=`systemctl status snell-server | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1`
 }
 
-check_new_ver(){
-	new_ver=$(wget -qO- https://api.github.com/repos/surge-networks/snell/releases| jq -r '[.[] | select(.prerelease == false) | select(.draft == false) | .tag_name] | .[0]')
-	[[ -z ${new_ver} ]] && echo -e "${Error} Snell Server 最新版本获取失败！" 
-	new_ver="v3.0.1"
-	echo -e "${Info} 官方源获取版本失败，请求备用源最新版本为 [ ${new_ver} ]"
-	echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
-}
-
-check_ver_comparison(){
-	now_ver=$(cat ${Now_ver_File})
-	if [[ "${now_ver}" != "${new_ver}" ]]; then
-		echo -e "${Info} 发现 Snell Server 已有新版本 [ ${new_ver} ]，旧版本 [ ${now_ver} ]"
-		read -e -p "是否更新 ? [Y/n] :" yn
-		[[ -z "${yn}" ]] && yn="y"
-		if [[ $yn == [Yy] ]]; then
-			check_status
-			# [[ "$status" == "running" ]] && systemctl stop snell-server
-			\cp "${CONF}" "/tmp/config.conf"
-			Download
-			mv -f "/tmp/config.conf" "${CONF}"
-			Restart
-		fi
-	else
-		echo -e "${Info} 当前 Snell Server 已是最新版本 [ ${new_ver} ]" && exit 1
-	fi
-}
-
-stable_Download() {
-	echo -e "${Info} 默认开始下载稳定版 Snell Server ……"
-	wget --no-check-certificate -N "https://github.com/surge-networks/snell/releases/download/${new_ver}/snell-server-${new_ver}-linux-${arch}.zip"
-	if [[ ! -e "snell-server-${new_ver}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server 稳定版下载失败！"
+# v2 备用源
+v2_Download() {
+	echo -e "${Info} 默认开始下载${Yellow_font_prefix}v2 备用源版${Font_color_suffix}Snell Server ……"
+	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v2.0.6/snell-server-v2.0.6-linux-${arch}.zip"
+	if [[ ! -e "snell-server-v2.0.6-linux-${arch}.zip" ]]; then
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-${new_ver}-linux-${arch}.zip"
+		unzip -o "snell-server-v2.0.6-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server 解压失败 !"
-		echo -e "${Error} Snell Server 安装失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}解压失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-${new_ver}-linux-${arch}.zip"
+		rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${FILE}"
-		echo "${new_ver}" > ${Now_ver_File}
+		echo "v2.0.6" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
 	fi
 }
 
-# 备用源
-backup_Download() {
-	echo -e "${Info} 试图请求 备份源 Snell Server ……"
+# v3 备用源
+v3_Download() {
+	echo -e "${Info} 试图请求${Yellow_font_prefix}v3 备用源版${Font_color_suffix}Snell Server ……"
 	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server 备份源 下载失败！"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}下载失败！"
 		return 1 && exit 1
 	else
 		unzip -o "snell-server-v3.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server 备份源 解压失败 !"
-		echo -e "${Error} Snell Server 备份源 安装失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}解压失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}安装失败 !"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
@@ -183,18 +157,19 @@ backup_Download() {
 	fi
 }
 
-Download_beta(){
-	echo -e "${Info} 试图请求 测试版 Snell Server ……"
+# v4 官方源
+v4_Download(){
+	echo -e "${Info} 试图请求${Yellow_font_prefix}v4 官网源版${Font_color_suffix}Snell Server ……"
 	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.0.1-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v4.0.1-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server 测试版 下载失败！"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}下载失败！"
 		return 1 && exit 1
 	else
 		unzip -o "snell-server-v4.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server 测试版 解压失败 !"
-		echo -e "${Error} Snell Server 测试版 安装失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}解压失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}安装失败 !"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v4.0.1-linux-${arch}.zip"
@@ -206,26 +181,28 @@ Download_beta(){
 	fi
 }
 
-Download() {
+# 安装
+Install() {
 	if [[ ! -e "${FOLDER}" ]]; then
 		mkdir "${FOLDER}"
-	# else
-		# [[ -e "${FILE}" ]] && rm -rf "${FILE}"
+	else
+		[[ -e "${FILE}" ]] && rm -rf "${FILE}"
 	fi
-	stable_Download
-	if [[ $? != 0 ]]; then
-		backup_Download
+		echo -e "选择安装版本${Yellow_font_prefix}[2-4]${Font_color_suffix} 
+==================================
+${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_color_suffix} v3  ${Green_font_prefix} 4.${Font_color_suffix} v4
+=================================="
+	read -e -p "(默认：4.v4)：" ver
+	[[ -z "${ver}" ]] && ver="4"
+	if [[ ${ver} == "2" ]]; then
+		Install_v2
+	elif [[ ${ver} == "3" ]]; then
+		Install_v3
+	elif [[ ${ver} == "4" ]]; then
+		Install_v4
+	else
+		Install_v4
 	fi
-}
-
-# 测试版下载
-Beta_install() {
-	if [[ ! -e "${FOLDER}" ]]; then
-		mkdir "${FOLDER}"
-	# else
-		# [[ -e "${FILE}" ]] && rm -rf "${FILE}"
-	fi
-	Download_beta
 }
 
 Service(){
@@ -274,7 +251,7 @@ Set_port(){
 	while true
 		do
 		echo -e "${Tip} 本步骤不涉及系统防火墙端口操作，请手动放行相应端口！"
-		echo -e "请输入 Snell Server 端口 [1-65535]"
+		echo -e "请输入 Snell Server 端口${Yellow_font_prefix}[1-65535]${Font_color_suffix}"
 		read -e -p "(默认: 2345):" port
 		[[ -z "${port}" ]] && port="2345"
 		echo $((${port}+0)) &>/dev/null
@@ -311,7 +288,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 }
 
 Set_psk(){
-	echo "请输入 Snell Server 密钥 [0-9][a-z][A-Z]"
+	echo "请输入 Snell Server 密钥${Yellow_font_prefix}[0-9][a-z][A-Z]${Font_color_suffix}"
 	read -e -p "(默认: 随机生成):" psk
 	[[ -z "${psk}" ]] && psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
 	echo && echo "=============================="
@@ -324,8 +301,8 @@ Set_obfs(){
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_color_suffix} HTTP ${Green_font_prefix} 3.${Font_color_suffix} 关闭
 =================================="
-	read -e -p "(默认：1.TLS)：" obfs
-	[[ -z "${obfs}" ]] && obfs="1"
+	read -e -p "(默认：2.HTTP)：" obfs
+	[[ -z "${obfs}" ]] && obfs="2"
 	if [[ ${obfs} == "1" ]]; then
 		obfs=tls
 	elif [[ ${obfs} == "2" ]]; then
@@ -333,7 +310,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 	elif [[ ${obfs} == "3" ]]; then
 		obfs=off
 	else
-		obfs=tls
+		obfs=http
 	fi
 	echo && echo "=================================="
 	echo -e "OBFS 状态：${Red_background_prefix} ${obfs} ${Font_color_suffix}"
@@ -341,22 +318,20 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 }
 
 Set_ver(){
-	echo -e "配置 Snell Server 协议版本 
+	echo -e "配置 Snell Server 协议版本${Yellow_font_prefix}[2-4]${Font_color_suffix} 
 ==================================
-${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 (v4专用，其他版本勿选！)
+${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 
 =================================="
-	read -e -p "(默认：3.v3)：" ver
-	[[ -z "${ver}" ]] && ver="2"
-	if [[ ${ver} == "1" ]]; then
-		ver=1
-	elif [[ ${ver} == "2" ]]; then
+	read -e -p "(默认：4.v4)：" ver
+	[[ -z "${ver}" ]] && ver="4"
+	if [[ ${ver} == "2" ]]; then
 		ver=2
 	elif [[ ${ver} == "3" ]]; then
 		ver=3
 	elif [[ ${ver} == "4" ]]; then
 		ver=4
 	else
-		ver=3
+		ver=4
 	fi
 	echo && echo "=================================="
 	echo -e "Snell Server 协议版本：${Red_background_prefix} ${ver} ${Font_color_suffix}"
@@ -365,8 +340,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} v1  ${Green_font_prefix} 2.${Font_co
 
 Set_host(){
 	echo "请输入 Snell Server 域名 "
-	read -e -p "(默认: www.bing.com):" host
-	[[ -z "${host}" ]] && host=www.bing.com
+	read -e -p "(默认: icloud.com):" host
+	[[ -z "${host}" ]] && host=icloud.com
 	echo && echo "=============================="
 	echo -e "	域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
 	echo "==============================" && echo
@@ -494,13 +469,14 @@ Set(){
 		Write_config
 		Restart
 	else
-		echo -e "${Error} 请输入正确的数字(1-8)" && exit 1
+		echo -e "${Error} 请输入正确的数字${Yellow_font_prefix}[1-8]${Font_color_suffix}" && exit 1
 	fi
     sleep 3s
     start_menu
 }
 
-Install(){
+# 安装 v2
+Install_v2(){
 	check_root
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -510,12 +486,10 @@ Install(){
 	Set_host
 	Set_ipv6
 	Set_tfo
-	Set_ver
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
-	check_new_ver
-	Download
+	v2_Download
 	echo -e "${Info} 开始安装 服务脚本..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
@@ -526,8 +500,33 @@ Install(){
     start_menu
 }
 
-# 安装测试版
-Install_beta(){
+# 安装 v3
+Install_v3(){
+	check_root
+	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
+	echo -e "${Info} 开始设置 配置..."
+	Set_port
+	Set_psk
+	Set_obfs
+	Set_host
+	Set_ipv6
+	Set_tfo
+	echo -e "${Info} 开始安装/配置 依赖..."
+	Installation_dependency
+	echo -e "${Info} 开始下载/安装..."
+	v3_Download
+	echo -e "${Info} 开始安装 服务脚本..."
+	Service
+	echo -e "${Info} 开始写入 配置文件..."
+	Write_config
+	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
+	Start
+    sleep 3s
+    start_menu
+}
+
+# 安装 v4
+Install_v4(){
 	check_root
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 ,请先卸载旧版再安装新版!" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -537,12 +536,10 @@ Install_beta(){
 	Set_host
 	Set_ipv6
 	Set_tfo
-	Set_ver
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
-	# check_new_ver
-	Beta_install
+	v4_Download
 	echo -e "${Info} 开始安装 服务脚本..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
@@ -582,8 +579,6 @@ Restart(){
 }
 Update(){
 	check_installed_status
-	check_new_ver
-	check_ver_comparison
 	echo -e "${Info} Snell Server 更新完毕 !"
     sleep 3s
     start_menu
@@ -697,34 +692,31 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 ==============================
  ${Green_font_prefix} 0.${Font_color_suffix} 更新脚本
 ——————————————————————————————
- ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server${Yellow_font_prefix}[v3]${Font_color_suffix}
- ${Green_font_prefix} 2.${Font_color_suffix} 升级 Snell Server${Yellow_font_prefix}[v3]${Font_color_suffix}
- ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Snell Server
+ ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server
+ ${Green_font_prefix} 2.${Font_color_suffix} 卸载 Snell Server
 ——————————————————————————————
- ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
- ${Green_font_prefix} 5.${Font_color_suffix} 停止 Snell Server
- ${Green_font_prefix} 6.${Font_color_suffix} 重启 Snell Server
+ ${Green_font_prefix} 3.${Font_color_suffix} 启动 Snell Server
+ ${Green_font_prefix} 4.${Font_color_suffix} 停止 Snell Server
+ ${Green_font_prefix} 5.${Font_color_suffix} 重启 Snell Server
 ——————————————————————————————
- ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
- ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
- ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
+ ${Green_font_prefix} 6.${Font_color_suffix} 设置 配置信息
+ ${Green_font_prefix} 7.${Font_color_suffix} 查看 配置信息
+ ${Green_font_prefix} 8.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 安装测试版${Yellow_font_prefix}[v4]${Font_color_suffix}
-——————————————————————————————
- ${Green_font_prefix} 11.${Font_color_suffix} 退出脚本
+ ${Green_font_prefix} 9.${Font_color_suffix} 退出脚本
 ==============================" && echo
 	if [[ -e ${FILE} ]]; then
 		check_status
 		if [[ "$status" == "running" ]]; then
-			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} 并 ${Green_font_prefix}已启动${Font_color_suffix}"
+			echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}并${Green_font_prefix}已启动${Font_color_suffix}"
 		else
-			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} 但 ${Red_font_prefix}未启动${Font_color_suffix}"
+			echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}但${Red_font_prefix}未启动${Font_color_suffix}"
 		fi
 	else
 		echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
 	fi
 	echo
-	read -e -p " 请输入数字 [0-10]:" num
+	read -e -p " 请输入数字[0-9]:" num
 	case "$num" in
 		0)
 		Update_Shell
@@ -733,37 +725,31 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 		Install
 		;;
 		2)
-		Update
-		;;
-		3)
 		Uninstall
 		;;
-		4)
+		3)
 		Start
 		;;
-		5)
+		4)
 		Stop
 		;;
-		6)
+		5)
 		Restart
 		;;
-		7)
+		6)
 		Set
 		;;
-		8)
+		7)
 		View
 		;;
-		9)
+		8)
 		Status
 		;;
-		10)
-		Install_beta
-		;;
-		11)
+		9)
 		exit 1
 		;;
 		*)
-		echo "请输入正确数字 [0-11]"
+		echo "请输入正确数字${Yellow_font_prefix}[0-9]${Font_color_suffix}"
 		;;
 	esac
 }
