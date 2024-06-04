@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.0"
+sh_ver="1.5.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -111,17 +111,17 @@ check_status(){
 
 # v2 备用源
 v2_Download() {
-	echo -e "${Info} 默认开始下载${Yellow_font_prefix}v2 备用源版${Font_color_suffix}Snell Server ……"
+	echo -e "${Info} 默认开始下载 ${Yellow_font_prefix}v2 备用源版 ${Font_color_suffix} Snell Server ……"
 	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v2.0.6/snell-server-v2.0.6-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v2.0.6-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}下载失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
 		unzip -o "snell-server-v2.0.6-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}解压失败 !"
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v2 备用源版${Font_color_suffix}安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix} 解压失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix } 安装失败 !"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
@@ -135,17 +135,17 @@ v2_Download() {
 
 # v3 备用源
 v3_Download() {
-	echo -e "${Info} 试图请求${Yellow_font_prefix}v3 备用源版${Font_color_suffix}Snell Server ……"
+	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} Snell Server ……"
 	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}下载失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
 		unzip -o "snell-server-v3.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}解压失败 !"
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v3 备用源版${Font_color_suffix}安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 解压失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
@@ -159,17 +159,17 @@ v3_Download() {
 
 # v4 官方源
 v4_Download(){
-	echo -e "${Info} 试图请求${Yellow_font_prefix}v4 官网源版${Font_color_suffix}Snell Server ……"
+	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} Snell Server ……"
 	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.0.1-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v4.0.1-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}下载失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
 		unzip -o "snell-server-v4.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}解压失败 !"
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix}安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败 !"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v4.0.1-linux-${arch}.zip"
