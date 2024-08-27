@@ -625,7 +625,9 @@ Uninstall(){
 	if [[ ${unyn} == [Yy] ]]; then
 		systemctl stop snell-server
         systemctl disable snell-server
+		echo -e "${Info} 移除主程序..."
 		rm -rf "${FILE}"
+		echo -e "${Info} 配置文件暂保留..."
 		echo && echo "Snell Server 卸载完成 !" && echo
 	else
 		echo && echo "卸载已取消..." && echo
