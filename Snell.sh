@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.2"
+sh_ver="1.5.3"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -234,7 +234,7 @@ psk = ${psk}
 obfs = ${obfs}
 obfs-host = ${host}
 tfo = ${tfo}
-dns = 8.8.8.8, 1.1.1.1, 2001:4860:4860::8888
+dns = ${dns}
 version = ${ver}
 EOF
 }
@@ -277,8 +277,8 @@ Set_ipv6(){
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
 =================================="
-	read -e -p "(默认：1.开启)：" ipv6
-	[[ -z "${ipv6}" ]] && ipv6="1"
+	read -e -p "(默认：2.关闭)：" ipv6
+	[[ -z "${ipv6}" ]] && ipv6="false"
 	if [[ ${ipv6} == "1" ]]; then
 		ipv6=true
 	else
@@ -299,12 +299,12 @@ Set_psk(){
 }
 
 Set_obfs(){
-	echo -e "配置 OBFS
+	echo -e "配置 OBFS，${Tip} 无特殊作用不建议启用该项。
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_color_suffix} HTTP ${Green_font_prefix} 3.${Font_color_suffix} 关闭
 =================================="
-	read -e -p "(默认：2.HTTP)：" obfs
-	[[ -z "${obfs}" ]] && obfs="2"
+	read -e -p "(默认：3.off)：" obfs
+	[[ -z "${obfs}" ]] && obfs="3"
 	if [[ ${obfs} == "1" ]]; then
 		obfs=tls
 	elif [[ ${obfs} == "2" ]]; then
@@ -312,7 +312,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 	elif [[ ${obfs} == "3" ]]; then
 		obfs=off
 	else
-		obfs=http
+		obfs=off
 	fi
 	echo && echo "=================================="
 	echo -e "OBFS 状态：${Red_background_prefix} ${obfs} ${Font_color_suffix}"
@@ -341,7 +341,7 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 }
 
 Set_host(){
-	echo "请输入 Snell Server 域名 "
+	echo "请输入 Snell Server 域名，v4 版本以上已弃用，可忽略。"
 	read -e -p "(默认: icloud.com):" host
 	[[ -z "${host}" ]] && host=icloud.com
 	echo && echo "=============================="
@@ -367,9 +367,18 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 	echo "==================================" && echo
 }
 
+Set_dns(){
+	echo -e "${Tip} 请输入正确格式的的 DNS，多条记录以英文逗号隔开，仅支持 v4.1.0b1 版本及以上。"
+	read -e -p "(默认值：8.8.8.8, 1.1.1.1, 2001:4860:4860::8888)：" dns
+	[[ -z "${dns}" ]] && dns="8.8.8.8, 1.1.1.1, 2001:4860:4860::8888"
+	echo && echo "=================================="
+	echo -e "当前 DNS 为：${Red_background_prefix} ${dns} ${Font_color_suffix}"
+	echo "==================================" && echo
+}
+
 Set(){
 	check_installed_status
-	echo && echo -e "你要做什么？
+	echo && echo -e "请输入要操作配置项的序号，然后回车
 ==============================
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
  ${Green_font_prefix}2.${Font_color_suffix}  修改 密钥
@@ -377,9 +386,10 @@ Set(){
  ${Green_font_prefix}4.${Font_color_suffix}  配置 OBFS 域名
  ${Green_font_prefix}5.${Font_color_suffix}  开关 IPv6 解析
  ${Green_font_prefix}6.${Font_color_suffix}  开关 TCP Fast Open
- ${Green_font_prefix}7.${Font_color_suffix}  配置 Snell Server 协议版本
+ ${Green_font_prefix}7.${Font_color_suffix}  配置 DNS
+ ${Green_font_prefix}8.${Font_color_suffix}  配置 Snell Server 协议版本
 ==============================
- ${Green_font_prefix}8.${Font_color_suffix}  修改 全部配置" && echo
+ ${Green_font_prefix}9.${Font_color_suffix}  修改 全部配置" && echo
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
 	if [[ "${modify}" == "1" ]]; then
@@ -390,6 +400,7 @@ Set(){
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -401,6 +412,7 @@ Set(){
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -412,6 +424,7 @@ Set(){
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -423,6 +436,7 @@ Set(){
 		Set_host
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -434,6 +448,7 @@ Set(){
 		Set_host=${host}
 		Set_ipv6
 		Set_tfo=${tfo}
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -445,6 +460,7 @@ Set(){
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo
+		Set_dns=${dns}
 		Set_ver=${ver}
 		Write_config
 		Restart
@@ -456,10 +472,23 @@ Set(){
 		Set_host=${host}
 		Set_ipv6=${ipv6}
 		Set_tfo=${tfo}
-		Set_ver
+		Set_dns
+		Set_ver=${ver}
 		Write_config
 		Restart
 	elif [[ "${modify}" == "8" ]]; then
+		Read_config
+		Set_port=${port}
+		Set_psk=${psk}
+		Set_obfs=${obfs}
+		Set_host=${host}
+		Set_ipv6=${ipv6}
+		Set_tfo=${tfo}
+		Set_dns=${dns}
+		Set_ver
+		Write_config
+		Restart
+	elif [[ "${modify}" == "9" ]]; then
 		Read_config
 		Set_port
 		Set_psk
@@ -467,11 +496,12 @@ Set(){
 		Set_host
 		Set_ipv6
 		Set_tfo
+		Set_dns
 		Set_ver
 		Write_config
 		Restart
 	else
-		echo -e "${Error} 请输入正确的数字${Yellow_font_prefix}[1-8]${Font_color_suffix}" && exit 1
+		echo -e "${Error} 请输入正确的数字${Yellow_font_prefix}[1-9]${Font_color_suffix}" && exit 1
 	fi
     sleep 3s
     start_menu
@@ -538,6 +568,7 @@ Install_v4(){
 	Set_host
 	Set_ipv6
 	Set_tfo
+	Set_dns
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
