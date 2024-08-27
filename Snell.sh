@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.1"
+sh_ver="1.5.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -160,22 +160,22 @@ v3_Download() {
 # v4 官方源
 v4_Download(){
 	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} Snell Server ……"
-	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.0.1-linux-${arch}.zip"
-	if [[ ! -e "snell-server-v4.0.1-linux-${arch}.zip" ]]; then
+	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.1.0b1-linux-${arch}.zip"
+	if [[ ! -e "snell-server-v4.1.0b1-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-v4.0.1-linux-${arch}.zip"
+		unzip -o "snell-server-v4.1.0b1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败 !"
 		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-v4.0.1-linux-${arch}.zip"
+		rm -rf "snell-server-v4.1.0b1-linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${FILE}"
-		echo "v4.0.1" > ${Now_ver_File}
+		echo "v4.1.0b1" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
 	fi
@@ -234,17 +234,19 @@ psk = ${psk}
 obfs = ${obfs}
 obfs-host = ${host}
 tfo = ${tfo}
+dns = 8.8.8.8, 1.1.1.1, 2001:4860:4860::8888
 version = ${ver}
 EOF
 }
 Read_config(){
 	[[ ! -e ${CONF} ]] && echo -e "${Error} Snell Server 配置文件不存在 !" && exit 1
 	ipv6=$(cat ${CONF}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
-	port=$(cat ${CONF}|grep ':'|awk -F ':' '{print $NF}')
+	port=$(grep -E '^listen\s*=' ${CONF} | awk -F ':' '{print $NF}' | xargs)
 	psk=$(cat ${CONF}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
 	obfs=$(cat ${CONF}|grep 'obfs = '|awk -F 'obfs = ' '{print $NF}')
 	host=$(cat ${CONF}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
 	tfo=$(cat ${CONF}|grep 'tfo = '|awk -F 'tfo = ' '{print $NF}')
+	dns=$(cat ${CONF}|grep 'dns = '|awk -F 'dns = ' '{print $NF}')
 	ver=$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')
 }
 Set_port(){
@@ -635,6 +637,7 @@ View(){
 	echo -e " 域名\t: ${Green_font_prefix}${host}${Font_color_suffix}"
 	echo -e " IPv6\t: ${Green_font_prefix}${ipv6}${Font_color_suffix}"
 	echo -e " TFO\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
+	echo -e " DNS\t: ${Green_font_prefix}${dns}${Font_color_suffix}"
 	echo -e " VER\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
