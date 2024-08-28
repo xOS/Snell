@@ -290,7 +290,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 }
 
 Set_psk(){
-	echo "请输入 Snell Server 密钥${Yellow_font_prefix}[0-9][a-z][A-Z]${Font_color_suffix}"
+	echo "请输入 Snell Server 密钥 [0-9][a-z][A-Z]"
 	read -e -p "(默认: 随机生成):" psk
 	[[ -z "${psk}" ]] && psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
 	echo && echo "=============================="
