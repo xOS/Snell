@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.4"
+sh_ver="1.5.5"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -160,22 +160,22 @@ v3_Download() {
 # v4 官方源
 v4_Download(){
 	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} Snell Server ……"
-	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.1.0b2-linux-${arch}.zip"
-	if [[ ! -e "snell-server-v4.1.0b2-linux-${arch}.zip" ]]; then
+	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.1.0b3-linux-${arch}.zip"
+	if [[ ! -e "snell-server-v4.1.0b3-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-v4.1.0b2-linux-${arch}.zip"
+		unzip -o "snell-server-v4.1.0b3-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败 !"
 		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-v4.1.0b2-linux-${arch}.zip"
+		rm -rf "snell-server-v4.1.0b3-linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${FILE}"
-		echo "v4.1.0b2" > ${Now_ver_File}
+		echo "v4.1.0b3" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
 	fi
