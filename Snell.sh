@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.5"
+sh_ver="1.5.6"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -23,11 +23,11 @@ Info="${Green_font_prefix}[信息]${Font_color_suffix}"
 Error="${Red_font_prefix}[错误]${Font_color_suffix}"
 Tip="${Yellow_font_prefix}[注意]${Font_color_suffix}"
 
-check_root(){
+checkRoot(){
 	[[ $EUID != 0 ]] && echo -e "${Error} 当前非ROOT账号(或没有ROOT权限)，无法继续操作，请更换ROOT账号或使用 ${Green_background_prefix}sudo su${Font_color_suffix} 命令获取临时ROOT权限（执行后可能会提示输入当前账号的密码）。" && exit 1
 }
 #检查系统
-check_sys(){
+checkSys(){
 	if [[ -f /etc/redhat-release ]]; then
 		release="centos"
 	elif cat /etc/issue | grep -q -E -i "debian"; then
@@ -45,7 +45,7 @@ check_sys(){
     fi
 }
 
-Installation_dependency(){
+InstallationDependency(){
 	if [[ ${release} == "centos" ]]; then
 		yum update && yum install gzip wget curl unzip jq -y
 	else
@@ -71,7 +71,7 @@ sysArch() {
 }
 
 #开启系统 TCP Fast Open
-enable_systfo() {
+enableSystfo() {
 	kernel=$(uname -r | awk -F . '{print $1}')
 	if [ "$kernel" -ge 3 ]; then
 		echo 3 >/proc/sys/net/ipv4/tcp_fastopen
@@ -101,16 +101,32 @@ net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.d/local.conf && sysctl --sy
 	fi
 }
 
-check_installed_status(){
+checkInstalledStatus(){
 	[[ ! -e ${FILE} ]] && echo -e "${Error} Snell Server 没有安装，请检查 !" && exit 1
 }
 
-check_status(){
+checkStatus(){
 	status=`systemctl status snell-server | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1`
 }
 
+getSnellv4Url(){
+	sysArch
+	snell_v4_url="https://dl.nssurge.com/snell/snell-server-v4.1.0rc1-linux-${arch}.zip"
+}
+
+getVer(){
+	getSnellv4Url
+	filename=$(basename "${snell_v4_url}")
+	if [[ $filename =~ v([0-9]+\.[0-9]+\.[0-9]+(rc[0-9]*|b[0-9]*)?) ]]; then
+    new_ver=${BASH_REMATCH[1]}
+    echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
+		else
+    echo -e "${Error} Snell Server 最新版本获取失败！"
+		fi
+}
+
 # v2 备用源
-v2_Download() {
+v2_download() {
 	echo -e "${Info} 默认开始下载 ${Yellow_font_prefix}v2 备用源版 ${Font_color_suffix} Snell Server ……"
 	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v2.0.6/snell-server-v2.0.6-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v2.0.6-linux-${arch}.zip" ]]; then
@@ -134,7 +150,7 @@ v2_Download() {
 }
 
 # v3 备用源
-v3_Download() {
+v3_download() {
 	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} Snell Server ……"
 	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
 	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
@@ -158,24 +174,25 @@ v3_Download() {
 }
 
 # v4 官方源
-v4_Download(){
+v4_download(){
 	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} Snell Server ……"
-	wget --no-check-certificate -N "https://dl.nssurge.com/snell/snell-server-v4.1.0b3-linux-${arch}.zip"
-	if [[ ! -e "snell-server-v4.1.0b3-linux-${arch}.zip" ]]; then
+	getVer
+	wget --no-check-certificate -N "${snell_v4_url}"
+	if [[ ! -e "snell-server-v${new_ver}-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-v4.1.0b3-linux-${arch}.zip"
+		unzip -o "snell-server-v${new_ver}-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败 !"
 		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-v4.1.0b3-linux-${arch}.zip"
+		rm -rf "snell-server-v${new_ver} -linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${FILE}"
-		echo "v4.1.0b3" > ${Now_ver_File}
+		echo "v${new_ver}" > ${Now_ver_File}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
 	fi
@@ -225,7 +242,7 @@ systemctl enable --now snell-server
 	echo -e "${Info} Snell Server 服务配置完成 !"
 }
 
-Write_config(){
+writeConfig(){
 	cat > ${CONF}<<-EOF
 [snell-server]
 listen = ::0:${port}
@@ -238,7 +255,7 @@ dns = ${dns}
 version = ${ver}
 EOF
 }
-Read_config(){
+readConfig(){
 	[[ ! -e ${CONF} ]] && echo -e "${Error} Snell Server 配置文件不存在 !" && exit 1
 	ipv6=$(cat ${CONF}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
 	port=$(grep -E '^listen\s*=' ${CONF} | awk -F ':' '{print $NF}' | xargs)
@@ -249,7 +266,7 @@ Read_config(){
 	dns=$(cat ${CONF}|grep 'dns = '|awk -F 'dns = ' '{print $NF}')
 	ver=$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')
 }
-Set_port(){
+setPort(){
 	while true
 		do
 		echo -e "${Tip} 本步骤不涉及系统防火墙端口操作，请手动放行相应端口！"
@@ -272,7 +289,7 @@ Set_port(){
 		done
 }
 
-Set_ipv6(){
+setIpv6(){
 	echo -e "是否开启 IPv6 解析 ？
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
@@ -289,8 +306,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 	echo "==================================" && echo
 }
 
-Set_psk(){
-	echo "请输入 Snell Server 密钥 [0-9][a-z][A-Z]"
+setPSK(){
+	echo "请输入 Snell Server 密钥 [0-9][a-z][A-Z] "
 	read -e -p "(默认: 随机生成):" psk
 	[[ -z "${psk}" ]] && psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
 	echo && echo "=============================="
@@ -298,7 +315,7 @@ Set_psk(){
 	echo "==============================" && echo
 }
 
-Set_obfs(){
+setObfs(){
 	echo -e "配置 OBFS，${Tip} 无特殊作用不建议启用该项。
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_color_suffix} HTTP ${Green_font_prefix} 3.${Font_color_suffix} 关闭
@@ -319,7 +336,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 	echo "==================================" && echo
 }
 
-Set_ver(){
+setVer(){
 	echo -e "配置 Snell Server 协议版本${Yellow_font_prefix}[2-4]${Font_color_suffix} 
 ==================================
 ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 
@@ -340,7 +357,7 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 	echo "==================================" && echo
 }
 
-Set_host(){
+setHost(){
 	echo "请输入 Snell Server 域名，v4 版本以上已弃用，可忽略。"
 	read -e -p "(默认: icloud.com):" host
 	[[ -z "${host}" ]] && host=icloud.com
@@ -349,7 +366,7 @@ Set_host(){
 	echo "==============================" && echo
 }
 
-Set_tfo(){
+setTFO(){
 	echo -e "是否开启 TCP Fast Open ？
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Font_color_suffix} 关闭
@@ -358,7 +375,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 	[[ -z "${tfo}" ]] && tfo="1"
 	if [[ ${tfo} == "1" ]]; then
 		tfo=true
-		enable_systfo
+		enableSystfo
 	else
 		tfo=false
 	fi
@@ -367,7 +384,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 	echo "==================================" && echo
 }
 
-Set_dns(){
+setDNS(){
 	echo -e "${Tip} 请输入正确格式的的 DNS，多条记录以英文逗号隔开，仅支持 v4.1.0b1 版本及以上。"
 	read -e -p "(默认值：8.8.8.8, 1.1.1.1, 2001:4860:4860::8888)：" dns
 	[[ -z "${dns}" ]] && dns="8.8.8.8, 1.1.1.1, 2001:4860:4860::8888"
@@ -377,7 +394,7 @@ Set_dns(){
 }
 
 Set(){
-	check_installed_status
+	checkInstalledStatus
 	echo && echo -e "请输入要操作配置项的序号，然后回车
 ==============================
  ${Green_font_prefix}1.${Font_color_suffix}  修改 端口
@@ -393,231 +410,231 @@ Set(){
 	read -e -p "(默认: 取消):" modify
 	[[ -z "${modify}" ]] && echo "已取消..." && exit 1
 	if [[ "${modify}" == "1" ]]; then
-		Read_config
-		Set_port
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "2" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "3" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "4" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "5" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "6" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo
-		Set_dns=${dns}
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO
+		setDNS=${dns}
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "7" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns
-		Set_ver=${ver}
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS
+		setVer=${ver}
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "8" ]]; then
-		Read_config
-		Set_port=${port}
-		Set_psk=${psk}
-		Set_obfs=${obfs}
-		Set_host=${host}
-		Set_ipv6=${ipv6}
-		Set_tfo=${tfo}
-		Set_dns=${dns}
-		Set_ver
-		Write_config
+		readConfig
+		setPort=${port}
+		setPSK=${psk}
+		setObfs=${obfs}
+		setHost=${host}
+		setIpv6=${ipv6}
+		setTFO=${tfo}
+		setDNS=${dns}
+		setVer
+		writeConfig
 		Restart
 	elif [[ "${modify}" == "9" ]]; then
-		Read_config
-		Set_port
-		Set_psk
-		Set_obfs
-		Set_host
-		Set_ipv6
-		Set_tfo
-		Set_dns
-		Set_ver
-		Write_config
+		readConfig
+		setPort
+		setPSK
+		setObfs
+		setHost
+		setIpv6
+		setTFO
+		setDNS
+		setVer
+		writeConfig
 		Restart
 	else
 		echo -e "${Error} 请输入正确的数字${Yellow_font_prefix}[1-9]${Font_color_suffix}" && exit 1
 	fi
     sleep 3s
-    start_menu
+    startMenu
 }
 
 # 安装 v2
 Install_v2(){
-	check_root
+	checkRoot
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
 	echo -e "${Info} 开始设置 配置..."
-	Set_port
-	Set_psk
-	Set_obfs
-	Set_host
-	Set_ipv6
-	Set_tfo
+	setPort
+	setPSK
+	setObfs
+	setHost
+	setIpv6
+	setTFO
 	echo -e "${Info} 开始安装/配置 依赖..."
-	Installation_dependency
+	InstallationDependency
 	echo -e "${Info} 开始下载/安装..."
-	v2_Download
+	v2_download
 	echo -e "${Info} 开始安装 服务脚本..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
-	Write_config
+	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
     sleep 3s
-    start_menu
+    startMenu
 }
 
 # 安装 v3
 Install_v3(){
-	check_root
+	checkRoot
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
 	echo -e "${Info} 开始设置 配置..."
-	Set_port
-	Set_psk
-	Set_obfs
-	Set_host
-	Set_ipv6
-	Set_tfo
+	setPort
+	setPSK
+	setObfs
+	setHost
+	setIpv6
+	setTFO
 	echo -e "${Info} 开始安装/配置 依赖..."
-	Installation_dependency
+	InstallationDependency
 	echo -e "${Info} 开始下载/安装..."
-	v3_Download
+	v3_download
 	echo -e "${Info} 开始安装 服务脚本..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
-	Write_config
+	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
     sleep 3s
-    start_menu
+    startMenu
 }
 
 # 安装 v4
 Install_v4(){
-	check_root
+	checkRoot
 	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 ,请先卸载旧版再安装新版!" && exit 1
 	echo -e "${Info} 开始设置 配置..."
-	Set_port
-	Set_psk
-	Set_obfs
-	Set_host
-	Set_ipv6
-	Set_tfo
-	Set_dns
+	setPort
+	setPSK
+	setObfs
+	setHost
+	setIpv6
+	setTFO
+	setDNS
 	echo -e "${Info} 开始安装/配置 依赖..."
-	Installation_dependency
+	InstallationDependency
 	echo -e "${Info} 开始下载/安装..."
-	v4_Download
+	v4_download
 	echo -e "${Info} 开始安装 服务脚本..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
-	Write_config
+	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
     sleep 3s
-    start_menu
+    startMenu
 }
 
 Start(){
-	check_installed_status
-	check_status
+	checkInstalledStatus
+	checkStatus
 	[[ "$status" == "running" ]] && echo -e "${Info} Snell Server 已在运行 !" && exit 1
 	systemctl start snell-server
-	check_status
+	checkStatus
 	[[ "$status" == "running" ]] && echo -e "${Info} Snell Server 启动成功 !"
     sleep 3s
-    start_menu
+    startMenu
 }
 Stop(){
-	check_installed_status
-	check_status
+	checkInstalledStatus
+	checkStatus
 	[[ !"$status" == "running" ]] && echo -e "${Error} Snell Server 没有运行，请检查 !" && exit 1
 	systemctl stop snell-server
 	echo -e "${Info} Snell Server 停止成功 !"
     sleep 3s
-    start_menu
+    startMenu
 }
 Restart(){
-	check_installed_status
+	checkInstalledStatus
 	systemctl restart snell-server
 	echo -e "${Info} Snell Server 重启完毕!"
 	sleep 3s
 	View
-    start_menu
+    startMenu
 }
 Update(){
-	check_installed_status
+	checkInstalledStatus
 	echo -e "${Info} Snell Server 更新完毕 !"
     sleep 3s
-    start_menu
+    startMenu
 }
 Uninstall(){
-	check_installed_status
+	checkInstalledStatus
 	echo "确定要卸载 Snell Server ? (y/N)"
 	echo
 	read -e -p "(默认: n):" unyn
@@ -633,9 +650,9 @@ Uninstall(){
 		echo && echo "卸载已取消..." && echo
 	fi
     sleep 3s
-    start_menu
+    startMenu
 }
-getipv4(){
+getIpv4(){
 	ipv4=$(wget -qO- -4 -t1 -T2 ipinfo.io/ip)
 	if [[ -z "${ipv4}" ]]; then
 		ipv4=$(wget -qO- -4 -t1 -T2 api.ip.sb/ip)
@@ -647,7 +664,7 @@ getipv4(){
 		fi
 	fi
 }
-getipv6(){
+getIpv6(){
 	ip6=$(wget -qO- -6 -t1 -T2 ifconfig.co)
 	if [[ -z "${ip6}" ]]; then
 		ip6="IPv6_Error"
@@ -655,10 +672,10 @@ getipv6(){
 }
 
 View(){
-	check_installed_status
-	Read_config
-	getipv4
-	getipv6
+	checkInstalledStatus
+	readConfig
+	getIpv4
+	getIpv6
 	clear && echo
 	echo -e "Snell Server 配置信息："
 	echo -e "—————————————————————————"
@@ -674,20 +691,20 @@ View(){
 	echo -e " VER\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
 	echo -e "—————————————————————————"
 	echo
-	before_start_menu
+	beforeStartMenu
 }
 
 Status(){
 	echo -e "${Info} 获取 Snell Server 活动日志 ……"
 	echo -e "${Tip} 返回主菜单请按 q ！"
 	systemctl status snell-server
-	start_menu
+	startMenu
 }
 
-Update_Shell(){
+updateShell(){
 	echo -e "当前版本为 [ ${sh_ver} ]，开始检测最新版本..."
 	sh_new_ver=$(wget --no-check-certificate -qO- "https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
-	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败 !" && start_menu
+	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败 !" && startMenu
 	if [[ ${sh_new_ver} != ${sh_ver} ]]; then
 		echo -e "发现新版本[ ${sh_new_ver} ]，是否更新？[Y/n]"
 		read -p "(默认: y):" yn
@@ -701,25 +718,25 @@ Update_Shell(){
 		else
 			echo && echo "	已取消..." && echo
             sleep 3s
-            start_menu
+            startMenu
 		fi
 	else
 		echo -e "当前已是最新版本[ ${sh_new_ver} ] !"
 		sleep 3s
-        start_menu
+        startMenu
 	fi
 	sleep 3s
     	bash snell.sh
 }
-before_start_menu() {
+beforeStartMenu() {
     echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
-    start_menu
+    startMenu
 }
 
-start_menu(){
+startMenu(){
 clear
-check_root
-check_sys
+checkRoot
+checkSys
 sysArch
 action=$1
 	echo && echo -e "  
@@ -742,7 +759,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 9.${Font_color_suffix} 退出脚本
 ==============================" && echo
 	if [[ -e ${FILE} ]]; then
-		check_status
+		checkStatus
 		if [[ "$status" == "running" ]]; then
 			echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${CONF}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}并${Green_font_prefix}已启动${Font_color_suffix}"
 		else
@@ -755,7 +772,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 	read -e -p " 请输入数字[0-9]:" num
 	case "$num" in
 		0)
-		Update_Shell
+		updateShell
 		;;
 		1)
 		Install
@@ -789,4 +806,4 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 		;;
 	esac
 }
-start_menu
+startMenu
