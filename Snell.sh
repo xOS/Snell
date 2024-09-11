@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.7"
+sh_ver="1.5.8"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -47,9 +47,11 @@ checkSys(){
 
 InstallationDependency(){
 	if [[ ${release} == "centos" ]]; then
-		yum update && yum install gzip wget curl unzip jq -y
+		yum update
+		yum install gzip wget curl unzip jq -y
 	else
-		apt-get update && apt-get install gzip wget curl unzip jq -y
+		apt-get update
+		apt-get install gzip wget curl unzip jq -y
 	fi
 	sysctl -w net.core.rmem_max=26214400
 	sysctl -w net.core.rmem_default=26214400
