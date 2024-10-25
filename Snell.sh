@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.5.9"
+sh_ver="1.6.0"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -192,7 +192,7 @@ v4_download(){
 		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-v${new_ver} -linux-${arch}.zip"
+		rm -rf "snell-server-v${new_ver}-linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${FILE}"
 		echo "v${new_ver}" > ${Now_ver_File}
