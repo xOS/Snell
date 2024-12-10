@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.0"
+sh_ver="1.6.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -692,7 +692,14 @@ View(){
 	echo -e " TFO\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
 	echo -e " DNS\t: ${Green_font_prefix}${dns}${Font_color_suffix}"
 	echo -e " VER\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
-	echo -e "—————————————————————————"
+	echo -e "--------------------------------------------------"
+	echo -e "${Info} Surge 配置："
+	if [[ "${ipv4}" != "IPv4_Error" ]]; then
+	echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"	
+	else
+	echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
+	fi
+  echo -e "--------------------------------------------------"
 	echo
 	beforeStartMenu
 }
