@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.1"
+sh_ver="1.6.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -323,7 +323,7 @@ setObfs(){
 ==================================
 ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_color_suffix} HTTP ${Green_font_prefix} 3.${Font_color_suffix} 关闭
 =================================="
-	read -e -p "(默认：3.off)：" obfs
+	read -e -p "(默认：3.关闭)：" obfs
 	[[ -z "${obfs}" ]] && obfs="3"
 	if [[ ${obfs} == "1" ]]; then
 		obfs=tls
@@ -389,8 +389,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 
 setDNS(){
 	echo -e "${Tip} 请输入正确格式的的 DNS，多条记录以英文逗号隔开，仅支持 v4.1.0b1 版本及以上。"
-	read -e -p "(默认值：8.8.8.8, 1.1.1.1, 2001:4860:4860::8888)：" dns
-	[[ -z "${dns}" ]] && dns="8.8.8.8, 1.1.1.1, 2001:4860:4860::8888"
+	read -e -p "(默认值：1.1.1.1, 8.8.8.8, 2001:4860:4860::8888)：" dns
+	[[ -z "${dns}" ]] && dns="1.1.1.1, 8.8.8.8, 2001:4860:4860::8888"
 	echo && echo "=================================="
 	echo -e "当前 DNS 为：${Red_background_prefix} ${dns} ${Font_color_suffix}"
 	echo "==================================" && echo
@@ -692,14 +692,14 @@ View(){
 	echo -e " TFO\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
 	echo -e " DNS\t: ${Green_font_prefix}${dns}${Font_color_suffix}"
 	echo -e " VER\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
-	echo -e "--------------------------------------------------"
+	echo -e "—————————————————————————"
 	echo -e "${Info} Surge 配置："
 	if [[ "${ipv4}" != "IPv4_Error" ]]; then
-	echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"	
+	echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"	
 	else
-	echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
+	echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
 	fi
-  echo -e "--------------------------------------------------"
+  echo -e "—————————————————————————"
 	echo
 	beforeStartMenu
 }
