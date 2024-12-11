@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.2"
+sh_ver="1.6.3"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -105,7 +105,7 @@ net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.d/local.conf && sysctl --sy
 }
 
 checkInstalledStatus(){
-	[[ ! -e ${FILE} ]] && echo -e "${Error} Snell Server 没有安装，请检查 !" && exit 1
+	[[ ! -e ${FILE} ]] && echo -e "${Error} Snell Server 没有安装，请检查！" && exit 1
 }
 
 checkStatus(){
@@ -139,8 +139,8 @@ v2_download() {
 		unzip -o "snell-server-v2.0.6-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix} 解压失败 !"
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix } 安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix} 解压失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v2 备用源版${Font_color_suffix } 安装失败！"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
@@ -163,8 +163,8 @@ v3_download() {
 		unzip -o "snell-server-v3.0.1-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 解压失败 !"
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 解压失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 安装失败！"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
@@ -188,8 +188,8 @@ v4_download(){
 		unzip -o "snell-server-v${new_ver}-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败 !"
-		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败 !"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败！"
+		echo -e "${Error} Snell Server${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 安装失败！"
 		return 1 && exit 1
 	else
 		rm -rf "snell-server-v${new_ver}-linux-${arch}.zip"
@@ -242,7 +242,7 @@ ExecStart=/usr/local/bin/snell-server -c /etc/snell/config.conf
 [Install]
 WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
 systemctl enable --now snell-server
-	echo -e "${Info} Snell Server 服务配置完成 !"
+	echo -e "${Info} Snell Server 服务配置完成！"
 }
 
 writeConfig(){
@@ -259,7 +259,7 @@ version = ${ver}
 EOF
 }
 readConfig(){
-	[[ ! -e ${CONF} ]] && echo -e "${Error} Snell Server 配置文件不存在 !" && exit 1
+	[[ ! -e ${CONF} ]] && echo -e "${Error} Snell Server 配置文件不存在！" && exit 1
 	ipv6=$(cat ${CONF}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
 	port=$(grep -E '^listen\s*=' ${CONF} | awk -F ':' '{print $NF}' | xargs)
 	psk=$(cat ${CONF}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
@@ -365,7 +365,7 @@ setHost(){
 	read -e -p "(默认: icloud.com):" host
 	[[ -z "${host}" ]] && host=icloud.com
 	echo && echo "=============================="
-	echo -e "	域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
+	echo -e "域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
 	echo "==============================" && echo
 }
 
@@ -530,7 +530,7 @@ Set(){
 # 安装 v2
 Install_v2(){
 	checkRoot
-	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
+	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装！" && exit 1
 	echo -e "${Info} 开始设置 配置..."
 	setPort
 	setPSK
@@ -548,14 +548,14 @@ Install_v2(){
 	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
-    sleep 3s
-    startMenu
+	echo -e "${Info} 启动完成，查看配置..."
+    	View
 }
 
 # 安装 v3
 Install_v3(){
 	checkRoot
-	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装 !" && exit 1
+	[[ -e ${FILE} ]] && echo -e "${Error} 检测到 Snell Server 已安装！" && exit 1
 	echo -e "${Info} 开始设置 配置..."
 	setPort
 	setPSK
@@ -573,8 +573,8 @@ Install_v3(){
 	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
-    sleep 3s
-    startMenu
+	echo -e "${Info} 启动完成，查看配置..."
+    	View
 }
 
 # 安装 v4
@@ -599,43 +599,53 @@ Install_v4(){
 	writeConfig
 	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
 	Start
+	echo -e "${Info} 启动完成，查看配置..."
+    	View
+}
+
+Start(){
+    checkInstalledStatus
+    checkStatus
+    if [[ "$status" == "running" ]]; then
+        echo -e "${Info} Snell Server 已在运行！"
+    else
+        systemctl start snell-server
+        checkStatus
+        if [[ "$status" == "running" ]]; then
+            echo -e "${Info} Snell Server 启动成功！"
+        else
+            echo -e "${Error} Snell Server 启动失败！"
+            exit 1
+        fi
+    fi
+    sleep 3s
+}
+
+Stop(){
+	checkInstalledStatus
+	checkStatus
+	[[ !"$status" == "running" ]] && echo -e "${Error} Snell Server 没有运行，请检查！" && exit 1
+	systemctl stop snell-server
+	echo -e "${Info} Snell Server 停止成功！"
     sleep 3s
     startMenu
 }
 
-Start(){
-	checkInstalledStatus
-	checkStatus
-	[[ "$status" == "running" ]] && echo -e "${Info} Snell Server 已在运行 !" && exit 1
-	systemctl start snell-server
-	checkStatus
-	[[ "$status" == "running" ]] && echo -e "${Info} Snell Server 启动成功 !"
-    sleep 3s
-    startMenu
-}
-Stop(){
-	checkInstalledStatus
-	checkStatus
-	[[ !"$status" == "running" ]] && echo -e "${Error} Snell Server 没有运行，请检查 !" && exit 1
-	systemctl stop snell-server
-	echo -e "${Info} Snell Server 停止成功 !"
-    sleep 3s
-    startMenu
-}
 Restart(){
 	checkInstalledStatus
 	systemctl restart snell-server
 	echo -e "${Info} Snell Server 重启完毕!"
 	sleep 3s
-	View
     startMenu
 }
+
 Update(){
 	checkInstalledStatus
-	echo -e "${Info} Snell Server 更新完毕 !"
+	echo -e "${Info} Snell Server 更新完毕！"
     sleep 3s
     startMenu
 }
+
 Uninstall(){
 	checkInstalledStatus
 	echo "确定要卸载 Snell Server ? (y/N)"
@@ -648,13 +658,14 @@ Uninstall(){
 		echo -e "${Info} 移除主程序..."
 		rm -rf "${FILE}"
 		echo -e "${Info} 配置文件暂保留..."
-		echo && echo "Snell Server 卸载完成 !" && echo
+		echo && echo "Snell Server 卸载完成！" && echo
 	else
 		echo && echo "卸载已取消..." && echo
 	fi
     sleep 3s
     startMenu
 }
+
 getIpv4(){
 	ipv4=$(wget -qO- -4 -t1 -T2 ipinfo.io/ip)
 	if [[ -z "${ipv4}" ]]; then
@@ -667,6 +678,7 @@ getIpv4(){
 		fi
 	fi
 }
+
 getIpv6(){
 	ip6=$(wget -qO- -6 -t1 -T2 ifconfig.co)
 	if [[ -z "${ip6}" ]]; then
@@ -699,8 +711,7 @@ View(){
 	else
 	echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
 	fi
-  echo -e "—————————————————————————"
-	echo
+   	echo -e "—————————————————————————"
 	beforeStartMenu
 }
 
@@ -714,14 +725,14 @@ Status(){
 updateShell(){
 	echo -e "当前版本为 [ ${sh_ver} ]，开始检测最新版本..."
 	sh_new_ver=$(wget --no-check-certificate -qO- "https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
-	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败 !" && startMenu
+	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败！" && startMenu
 	if [[ ${sh_new_ver} != ${sh_ver} ]]; then
 		echo -e "发现新版本[ ${sh_new_ver} ]，是否更新？[Y/n]"
 		read -p "(默认: y):" yn
 		[[ -z "${yn}" ]] && yn="y"
 		if [[ ${yn} == [Yy] ]]; then
 			wget -O snell.sh --no-check-certificate https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh && chmod +x snell.sh
-			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ] !"
+			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ]！"
 			echo -e "3s后执行新脚本"
             sleep 3s
             bash snell.sh
@@ -731,7 +742,7 @@ updateShell(){
             startMenu
 		fi
 	else
-		echo -e "当前已是最新版本[ ${sh_new_ver} ] !"
+		echo -e "当前已是最新版本[ ${sh_new_ver} ]！"
 		sleep 3s
         startMenu
 	fi
