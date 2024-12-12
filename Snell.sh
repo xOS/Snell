@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.3"
+sh_ver="1.6.4"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -707,10 +707,18 @@ View(){
 	echo -e "—————————————————————————"
 	echo -e "${Info} Surge 配置："
 	if [[ "${ipv4}" != "IPv4_Error" ]]; then
-	echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"	
+	if [[ "${obfs}" == "off" ]]; then
+		echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},reuse=true,ecn=true"
 	else
-	echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
+		echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
 	fi
+else
+	if [[ "${obfs}" == "off" ]]; then
+		echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},reuse=true,ecn=true"
+	else
+		echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
+	fi
+fi
    	echo -e "—————————————————————————"
 	beforeStartMenu
 }
