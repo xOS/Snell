@@ -115,7 +115,7 @@ checkStatus(){
 
 getSnellv4Url(){
 	sysArch
-	snell_v4_url="https://dl.nssurge.com/snell/snell-server-${Snell_Ver}-linux-${arch}.zip"
+	snell_v4_url="https://dl.nssurge.com/snell/snell-server-v${Snell_Ver}-linux-${arch}.zip"
 }
 
 getVer(){
