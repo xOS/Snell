@@ -9,7 +9,8 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.4"
+sh_ver="1.6.5"
+Snell_Ver="4.1.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 FOLDER="/etc/snell/"
@@ -114,7 +115,7 @@ checkStatus(){
 
 getSnellv4Url(){
 	sysArch
-	snell_v4_url="https://dl.nssurge.com/snell/snell-server-v4.1.1-linux-${arch}.zip"
+	snell_v4_url="https://dl.nssurge.com/snell/snell-server-${Snell_Ver}-linux-${arch}.zip"
 }
 
 getVer(){
