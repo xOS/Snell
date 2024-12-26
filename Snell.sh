@@ -709,15 +709,15 @@ View(){
 	echo -e "${Info} Surge 配置："
 	if [[ "${ipv4}" != "IPv4_Error" ]]; then
 	if [[ "${obfs}" == "off" ]]; then
-		echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},reuse=true,ecn=true"
+		echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
 	else
-		echo -e "$(uname -n) = snell,${ipv4},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
+		echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
 	fi
 else
 	if [[ "${obfs}" == "off" ]]; then
-		echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},reuse=true,ecn=true"
+		echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
 	else
-		echo -e "$(uname -n) = snell,${ip6},${port},psk=${psk},version=${ver},tfo=${tfo},obfs=${obfs},host=${host},reuse=true,ecn=true"
+		echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
 	fi
 fi
    	echo -e "—————————————————————————"
