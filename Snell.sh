@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.5"
+sh_ver="1.6.6"
 Snell_Ver="4.1.1"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
@@ -711,13 +711,13 @@ View(){
 	if [[ "${obfs}" == "off" ]]; then
 		echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
 	else
-		echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
+		echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, obfs-host=${host}, reuse=true, ecn=true"
 	fi
 else
 	if [[ "${obfs}" == "off" ]]; then
 		echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
 	else
-		echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, host=${host}, reuse=true, ecn=true"
+		echo -e "$(uname -n) = snell, ${ip6}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, obfs-host=${host}, reuse=true, ecn=true"
 	fi
 fi
    	echo -e "—————————————————————————"
