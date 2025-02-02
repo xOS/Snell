@@ -362,7 +362,7 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 }
 
 setHost(){
-	echo "请输入 Snell Server 域名，v4 版本以上已弃用，可忽略。"
+	echo "请输入 Snell Server 域名，v4 版本及以上如无特别需求可忽略。"
 	read -e -p "(默认: icloud.com):" host
 	[[ -z "${host}" ]] && host=icloud.com
 	echo && echo "=============================="
