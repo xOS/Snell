@@ -731,33 +731,57 @@ Status(){
 	startMenu
 }
 
+geo_check() {
+    api_list="https://blog.cloudflare.com/cdn-cgi/trace https://dash.cloudflare.com/cdn-cgi/trace https://cf-ns.com/cdn-cgi/trace"
+    ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    set -- $api_list
+    for url in $api_list; do
+        text="$(curl -A "$ua" -m 10 -s $url)"
+        endpoint="$(echo $text | sed -n 's/.*h=\([^ ]*\).*/\1/p')"
+        if echo $text | grep -qw 'CN'; then
+            isCN=true
+            break
+        elif echo $url | grep -q $endpoint; then
+            break
+        fi
+    done
+}
+
 updateShell(){
-	echo -e "当前版本为 [ ${sh_ver} ]，开始检测最新版本..."
-	sh_new_ver=$(wget --no-check-certificate -qO- "https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
-	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败！" && startMenu
-	if [[ ${sh_new_ver} != ${sh_ver} ]]; then
-		echo -e "发现新版本[ ${sh_new_ver} ]，是否更新？[Y/n]"
-		read -p "(默认: y):" yn
-		[[ -z "${yn}" ]] && yn="y"
-		if [[ ${yn} == [Yy] ]]; then
-			wget -O snell.sh --no-check-certificate https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh && chmod +x snell.sh
-			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ]！"
-			echo -e "3s后执行新脚本"
+    geo_check
+    if [ ! -z "$isCN" ]; then
+        shell_url="https://gitee.com/ten/Snell/raw/master/Snell.sh"
+    else
+        shell_url="https://raw.githubusercontent.com/xOS/Snell/master/Snell.sh"
+    fi
+
+    echo -e "当前版本为 [ ${sh_ver} ]，开始检测最新版本..."
+    sh_new_ver=$(wget --no-check-certificate -qO- "$shell_url"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
+    [[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败！" && startMenu
+    if [[ ${sh_new_ver} != ${sh_ver} ]]; then
+        echo -e "发现新版本[ ${sh_new_ver} ]，是否更新？[Y/n]"
+        read -p "(默认: y):" yn
+        [[ -z "${yn}" ]] && yn="y"
+        if [[ ${yn} == [Yy] ]]; then
+            wget -O snell.sh --no-check-certificate "$shell_url" && chmod +x snell.sh
+            echo -e "脚本已更新为最新版本[ ${sh_new_ver} ]！"
+            echo -e "3s后执行新脚本"
             sleep 3s
             bash snell.sh
-		else
-			echo && echo "	已取消..." && echo
+        else
+            echo && echo "	已取消..." && echo
             sleep 3s
             startMenu
-		fi
-	else
-		echo -e "当前已是最新版本[ ${sh_new_ver} ]！"
-		sleep 3s
+        fi
+    else
+        echo -e "当前已是最新版本[ ${sh_new_ver} ]！"
+        sleep 3s
         startMenu
-	fi
-	sleep 3s
-    	bash snell.sh
+    fi
+    sleep 3s
+    bash snell.sh
 }
+
 beforeStartMenu() {
     echo && echo -n -e "${yellow}* 按回车返回主菜单 *${plain}" && read temp
     startMenu
