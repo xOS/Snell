@@ -1,6 +1,7 @@
 name: Sync Code to Gitee
 
 on:
+  workflow_dispatch:
   push:
     branches: [master]
 
