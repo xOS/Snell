@@ -1,0 +1,16 @@
+name: Sync Code to Gitee
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  sync-code-to-gitee:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: adambirds/sync-github-to-gitlab-action@v1.1.0
+        with:
+          destination_repository: git@gitee.com:Ten/Snell.git
+          destination_branch_name: master
+          destination_ssh_key: ${{ secrets.GITEE_SSH_KEY }}
