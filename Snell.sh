@@ -9,8 +9,9 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.6.8"
+sh_ver="1.7.0"
 snell_version="4.1.1"
+snell_v5_version="5.0.0b1"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
@@ -149,6 +150,12 @@ getSnellV4DownloadUrl(){
 	snell_v4_url="https://dl.nssurge.com/snell/snell-server-v${snell_version}-linux-${arch}.zip"
 }
 
+# 获取 Snell v5 下载链接
+getSnellV5DownloadUrl(){
+	sysArch
+	snell_v5_url="https://dl.nssurge.com/snell/snell-server-v${snell_v5_version}-linux-${arch}.zip"
+}
+
 # 获取最新版本号
 getLatestVersion(){
 	getSnellV4DownloadUrl
@@ -230,6 +237,30 @@ downloadSnellV4(){
 	fi
 }
 
+# 下载并安装 Snell v5（官方源）
+downloadSnellV5(){
+	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} Snell Server ……"
+	getSnellV5DownloadUrl
+	wget --no-check-certificate -N "${snell_v5_url}"
+	if [[ ! -e "snell-server-v${snell_v5_version}-linux-${arch}.zip" ]]; then
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} 下载失败！"
+		return 1 && exit 1
+	else
+		unzip -o "snell-server-v${snell_v5_version}-linux-${arch}.zip"
+	fi
+	if [[ ! -e "snell-server" ]]; then
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} 解压失败！"
+		return 1 && exit 1
+	else
+		rm -rf "snell-server-v${snell_v5_version}-linux-${arch}.zip"
+		chmod +x snell-server
+		mv -f snell-server "${snell_bin}"
+		echo "v${snell_v5_version}" > ${snell_version_file}
+		echo -e "${Info} Snell Server 主程序下载安装完毕！"
+		return 0
+	fi
+}
+
 # 安装 Snell
 installSnell() {
 	if [[ ! -e "${snell_dir}" ]]; then
@@ -237,9 +268,9 @@ installSnell() {
 	else
 		[[ -e "${snell_bin}" ]] && rm -rf "${snell_bin}"
 	fi
-	echo -e "选择安装版本${Yellow_font_prefix}[2-4]${Font_color_suffix} 
+	echo -e "选择安装版本${Yellow_font_prefix}[2-5]${Font_color_suffix} 
 ==================================
-${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_color_suffix} v3  ${Green_font_prefix} 4.${Font_color_suffix} v4
+${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_color_suffix} v3  ${Green_font_prefix} 4.${Font_color_suffix} v4  ${Green_font_prefix} 5.${Font_color_suffix} v5${Yellow_font_prefix}(beta)${Font_color_suffix}
 =================================="
 	read -e -p "(默认：4.v4)：" ver
 	[[ -z "${ver}" ]] && ver="4"
@@ -249,6 +280,8 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_co
 		installSnellV3
 	elif [[ ${ver} == "4" ]]; then
 		installSnellV4
+	elif [[ ${ver} == "5" ]]; then
+		installSnellV5
 	else
 		installSnellV4
 	fi
@@ -395,9 +428,9 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 
 # 设置协议版本
 setVer(){
-	echo -e "配置 Snell Server 协议版本${Yellow_font_prefix}[2-4]${Font_color_suffix} 
+	echo -e "配置 Snell Server 协议版本${Yellow_font_prefix}[2-5]${Font_color_suffix} 
 ==================================
-${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 
+${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 ${Green_font_prefix} 5.${Font_color_suffix} v5${Yellow_font_prefix}(beta)${Font_color_suffix}
 =================================="
 	read -e -p "(默认：4.v4)：" ver
 	[[ -z "${ver}" ]] && ver="4"
@@ -407,6 +440,8 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 		ver=3
 	elif [[ ${ver} == "4" ]]; then
 		ver=4
+	elif [[ ${ver} == "5" ]]; then
+		ver=5
 	else
 		ver=4
 	fi
@@ -611,6 +646,33 @@ installSnellV4(){
     viewConfig
 }
 
+# 安装 Snell v5
+installSnellV5(){
+	checkRoot
+	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装，请先卸载旧版再安装新版!" && exit 1
+	echo -e "${Tip} 您选择的是 v5 ${Yellow_font_prefix}Beta${Font_color_suffix} 版本，此版本为测试版本，可能存在不稳定因素！"
+	echo -e "${Info} 开始设置 配置..."
+	setPort
+	setPSK
+	setObfs
+	setIpv6
+	setTFO
+	setDNS
+	echo -e "${Info} 开始安装/配置 依赖..."
+	checkDependencies
+	installDependencies
+	echo -e "${Info} 开始下载/安装..."
+	downloadSnellV5
+	echo -e "${Info} 开始安装 服务脚本..."
+	setupService
+	echo -e "${Info} 开始写入 配置文件..."
+	writeConfig
+	echo -e "${Info} 所有步骤 安装完毕，开始启动..."
+	startSnell
+	echo -e "${Info} 启动完成，查看配置..."
+    viewConfig
+}
+
 # 启动 Snell
 startSnell(){
     checkInstalledStatus
@@ -655,6 +717,83 @@ updateSnell(){
 	echo -e "${Info} Snell Server 更新完毕！"
     sleep 3s
     startMenu
+}
+
+# v4 更新到 v5
+updateV4toV5(){
+	checkInstalledStatus
+	readConfig
+	
+	# 检查当前版本是否为 v4
+	if [[ "$ver" != "4" ]]; then
+		echo -e "${Error} 当前版本不是 v4，无法使用此功能！当前版本：v${ver}"
+		sleep 3s
+		startMenu
+		return 1
+	fi
+	
+	echo -e "${Tip} 即将将 Snell Server 从 v4 更新到 v5 ${Yellow_font_prefix}Beta${Font_color_suffix} 版本"
+	echo -e "${Tip} v5 为测试版本，可能存在不稳定因素！"
+	echo -e "确定要更新吗？(y/N)"
+	read -e -p "(默认: n):" confirm
+	[[ -z "${confirm}" ]] && confirm="n"
+	
+	if [[ ${confirm} != [Yy] ]]; then
+		echo -e "${Info} 已取消更新"
+		sleep 2s
+		startMenu
+		return 0
+	fi
+	
+	echo -e "${Info} 开始更新 Snell Server v4 到 v5..."
+	
+	# 停止服务
+	echo -e "${Info} 停止 Snell Server 服务..."
+	systemctl stop snell-server
+	
+	# 备份当前二进制文件
+	if [[ -e "${snell_bin}" ]]; then
+		echo -e "${Info} 备份当前程序文件..."
+		cp "${snell_bin}" "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)"
+	fi
+	
+	# 下载并安装 v5
+	echo -e "${Info} 开始下载 v5 版本..."
+	downloadSnellV5
+	
+	if [[ $? -eq 0 ]]; then
+		# 更新配置文件中的版本号
+		echo -e "${Info} 更新配置文件版本号..."
+		sed -i "s/version = 4/version = 5/g" "${snell_conf}"
+		
+		# 重新加载 systemd 并启动服务
+		echo -e "${Info} 重启 Snell Server 服务..."
+		systemctl daemon-reload
+		systemctl start snell-server
+		
+		# 检查服务状态
+		sleep 2
+		checkStatus
+		if [[ "$status" == "running" ]]; then
+			echo -e "${Info} v4 到 v5 更新成功！"
+			echo -e "${Info} 当前版本：v5 ${Yellow_font_prefix}Beta${Font_color_suffix}"
+		else
+			echo -e "${Error} 服务启动失败，正在回滚..."
+			# 回滚到 v4
+			if [[ -e "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)" ]]; then
+				cp "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)" "${snell_bin}"
+				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
+				systemctl start snell-server
+				echo -e "${Info} 已回滚到 v4 版本"
+			fi
+		fi
+	else
+		echo -e "${Error} v5 下载失败，保持 v4 版本"
+		systemctl start snell-server
+	fi
+	
+	sleep 3s
+	startMenu
 }
 
 # 卸载 Snell
@@ -818,6 +957,16 @@ startMenu(){
     checkSys
     sysArch
     action=$1
+    
+    # 检查是否安装了 v4 版本
+    show_v4_to_v5_option=false
+    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+        current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
+        if [[ "$current_ver" == "4" ]]; then
+            show_v4_to_v5_option=true
+        fi
+    fi
+    
     echo && echo -e "  
 ==============================
 Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
@@ -825,8 +974,24 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 0.${Font_color_suffix} 更新脚本
 ——————————————————————————————
  ${Green_font_prefix} 1.${Font_color_suffix} 安装 Snell Server
- ${Green_font_prefix} 2.${Font_color_suffix} 卸载 Snell Server
+ ${Green_font_prefix} 2.${Font_color_suffix} 卸载 Snell Server"
+    
+    # 只有安装了 v4 时才显示 v4 到 v5 更新选项
+    if [[ "$show_v4_to_v5_option" == true ]]; then
+        echo -e "——————————————————————————————
+ ${Green_font_prefix} 3.${Font_color_suffix} v4 更新到 v5${Yellow_font_prefix}(Beta)${Font_color_suffix}
 ——————————————————————————————
+ ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
+ ${Green_font_prefix} 5.${Font_color_suffix} 停止 Snell Server
+ ${Green_font_prefix} 6.${Font_color_suffix} 重启 Snell Server
+——————————————————————————————
+ ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
+ ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
+ ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
+——————————————————————————————
+ ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本"
+    else
+        echo -e "——————————————————————————————
  ${Green_font_prefix} 3.${Font_color_suffix} 启动 Snell Server
  ${Green_font_prefix} 4.${Font_color_suffix} 停止 Snell Server
  ${Green_font_prefix} 5.${Font_color_suffix} 重启 Snell Server
@@ -835,8 +1000,10 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 7.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 9.${Font_color_suffix} 退出脚本
-==============================" && echo
+ ${Green_font_prefix} 9.${Font_color_suffix} 退出脚本"
+    fi
+    
+    echo "==============================" && echo
     if [[ -e ${snell_bin} ]]; then
         checkStatus
         if [[ "$status" == "running" ]]; then
@@ -848,44 +1015,94 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
         echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
     fi
     echo
-    read -e -p " 请输入数字[0-9]:" num
-    case "$num" in
-        0)
-        updateShell
-        ;;
-        1)
-        installSnell
-        ;;
-        2)
-        uninstallSnell
-        ;;
-        3)
-        startSnell
-        ;;
-        4)
-        stopSnell
-        ;;
-        5)
-        restartSnell
-        ;;
-        6)
-        setConfig
-        ;;
-        7)
-        viewConfig
-        ;;
-        8)
-        viewStatus
-        ;;
-        9)
-        exit 1
-        ;;
-        *)
-        echo -e "请输入正确数字${Yellow_font_prefix}[0-9]${Font_color_suffix}"
-    	sleep 2s
-    	startMenu
-        ;;
-    esac
+    
+    if [[ "$show_v4_to_v5_option" == true ]]; then
+        read -e -p " 请输入数字[0-10]:" num
+    else
+        read -e -p " 请输入数字[0-9]:" num
+    fi
+    
+    # 根据是否显示 v4 到 v5 选项来调整菜单处理
+    if [[ "$show_v4_to_v5_option" == true ]]; then
+        case "$num" in
+            0)
+            updateShell
+            ;;
+            1)
+            installSnell
+            ;;
+            2)
+            uninstallSnell
+            ;;
+            3)
+            updateV4toV5
+            ;;
+            4)
+            startSnell
+            ;;
+            5)
+            stopSnell
+            ;;
+            6)
+            restartSnell
+            ;;
+            7)
+            setConfig
+            ;;
+            8)
+            viewConfig
+            ;;
+            9)
+            viewStatus
+            ;;
+            10)
+            exit 1
+            ;;
+            *)
+            echo -e "请输入正确数字${Yellow_font_prefix}[0-10]${Font_color_suffix}"
+            sleep 2s
+            startMenu
+            ;;
+        esac
+    else
+        case "$num" in
+            0)
+            updateShell
+            ;;
+            1)
+            installSnell
+            ;;
+            2)
+            uninstallSnell
+            ;;
+            3)
+            startSnell
+            ;;
+            4)
+            stopSnell
+            ;;
+            5)
+            restartSnell
+            ;;
+            6)
+            setConfig
+            ;;
+            7)
+            viewConfig
+            ;;
+            8)
+            viewStatus
+            ;;
+            9)
+            exit 1
+            ;;
+            *)
+            echo -e "请输入正确数字${Yellow_font_prefix}[0-9]${Font_color_suffix}"
+            sleep 2s
+            startMenu
+            ;;
+        esac
+    fi
 }
 
 startMenu
