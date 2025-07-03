@@ -9,8 +9,8 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.0"
-snell_version="4.1.1"
+sh_ver="1.7.1"
+snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b1"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
@@ -144,29 +144,14 @@ checkStatus(){
 }
 
 
-# 获取 Snell v4 下载链接
-getSnellV4DownloadUrl(){
+# 获取 Snell 下载链接
+getSnellDownloadUrl(){
 	sysArch
-	snell_v4_url="https://dl.nssurge.com/snell/snell-server-v${snell_version}-linux-${arch}.zip"
+	local version=$1
+	snell_url="https://dl.nssurge.com/snell/snell-server-v${version}-linux-${arch}.zip"
 }
 
-# 获取 Snell v5 下载链接
-getSnellV5DownloadUrl(){
-	sysArch
-	snell_v5_url="https://dl.nssurge.com/snell/snell-server-v${snell_v5_version}-linux-${arch}.zip"
-}
 
-# 获取最新版本号
-getLatestVersion(){
-	getSnellV4DownloadUrl
-	filename=$(basename "${snell_v4_url}")
-	if [[ $filename =~ v([0-9]+\.[0-9]+\.[0-9]+(rc[0-9]*|b[0-9]*)?) ]]; then
-    new_ver=${BASH_REMATCH[1]}
-    echo -e "${Info} 检测到 Snell 最新版本为 [ ${new_ver} ]"
-	else
-    echo -e "${Error} Snell Server 最新版本获取失败！"
-	fi
-}
 
 # 下载并安装 Snell v2（备用源）
 downloadSnellV2() {
@@ -184,7 +169,7 @@ downloadSnellV2() {
     rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
     chmod +x snell-server
     mv -f snell-server "${snell_bin}"
-    echo "v2.0.6" > "${snell_version_file}"
+    echo "v2.0.6" > "${snell_v4_version_file}"
     echo -e "${Info} Snell Server v2 下载安装完毕！"
     return 0
 }
@@ -215,47 +200,35 @@ downloadSnellV3() {
 
 # 下载并安装 Snell v4（官方源）
 downloadSnellV4(){
-	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} Snell Server ……"
-	getLatestVersion
-	wget --no-check-certificate -N "${snell_v4_url}"
-	if [[ ! -e "snell-server-v${new_ver}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 下载失败！"
-		return 1 && exit 1
-	else
-		unzip -o "snell-server-v${new_ver}-linux-${arch}.zip"
-	fi
-	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v4 官网源版${Font_color_suffix} 解压失败！"
-		return 1 && exit 1
-	else
-		rm -rf "snell-server-v${new_ver}-linux-${arch}.zip"
-		chmod +x snell-server
-		mv -f snell-server "${snell_bin}"
-		echo "v${new_ver}" > ${snell_version_file}
-		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-		return 0
-	fi
+	downloadSnell "${snell_v4_version}" "v4 官网源版"
 }
 
 # 下载并安装 Snell v5（官方源）
 downloadSnellV5(){
-	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} Snell Server ……"
-	getSnellV5DownloadUrl
-	wget --no-check-certificate -N "${snell_v5_url}"
-	if [[ ! -e "snell-server-v${snell_v5_version}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} 下载失败！"
+	downloadSnell "${snell_v5_version}" "v5 Beta 官网源版"
+}
+
+# 通用下载并安装 Snell 函数
+downloadSnell(){
+	local version=$1
+	local version_type=$2
+	echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
+	getSnellDownloadUrl "${version}"
+	wget --no-check-certificate -N "${snell_url}"
+	if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
 	else
-		unzip -o "snell-server-v${snell_v5_version}-linux-${arch}.zip"
+		unzip -o "snell-server-v${version}-linux-${arch}.zip"
 	fi
 	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v5 Beta 官网源版${Font_color_suffix} 解压失败！"
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 解压失败！"
 		return 1 && exit 1
 	else
-		rm -rf "snell-server-v${snell_v5_version}-linux-${arch}.zip"
+		rm -rf "snell-server-v${version}-linux-${arch}.zip"
 		chmod +x snell-server
 		mv -f snell-server "${snell_bin}"
-		echo "v${snell_v5_version}" > ${snell_version_file}
+		echo "v${version}" > ${snell_version_file}
 		echo -e "${Info} Snell Server 主程序下载安装完毕！"
 		return 0
 	fi
@@ -759,7 +732,7 @@ updateV4toV5(){
 	
 	# 下载并安装 v5
 	echo -e "${Info} 开始下载 v5 版本..."
-	downloadSnellV5
+	downloadSnell "${snell_v5_version}" "v5 Beta 官网源版"
 	
 	if [[ $? -eq 0 ]]; then
 		# 更新配置文件中的版本号
@@ -780,8 +753,9 @@ updateV4toV5(){
 		else
 			echo -e "${Error} 服务启动失败，正在回滚..."
 			# 回滚到 v4
-			if [[ -e "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)" ]]; then
-				cp "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)" "${snell_bin}"
+			backup_file=$(ls -t "${snell_bin}".v4.backup.* 2>/dev/null | head -1)
+			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
+				cp "$backup_file" "${snell_bin}"
 				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 v4 版本"
