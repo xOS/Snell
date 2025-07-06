@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.1"
+sh_ver="1.7.2"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b2"
 script_dir=$(cd "$(dirname "$0")"; pwd)
