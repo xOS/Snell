@@ -11,7 +11,7 @@ export PATH
 
 sh_ver="1.7.1"
 snell_v4_version="4.1.1"
-snell_v5_version="5.0.0b1"
+snell_v5_version="5.0.0b2"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
