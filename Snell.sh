@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.5"
+sh_ver="1.7.8"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b2"
 script_dir=$(cd "$(dirname "$0")"; pwd)
@@ -146,10 +146,12 @@ checkStatus(){
 # 检查版本更新
 checkVersionUpdate(){
     update_available=false
+    current_installed_version=""
+    latest_available_version=""
+    
     if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
         current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
         
-        # 检查所有版本的更新，设置标志
         if [[ -e ${snell_version_file} ]]; then
             installed_version=$(cat ${snell_version_file} | sed 's/^v//')
             
@@ -166,11 +168,12 @@ checkVersionUpdate(){
                     ;;
             esac
             
+            current_installed_version="$installed_version"
+            latest_available_version="$script_version"
+            
+            # 直接比较版本号字符串，网页版本优先
             if [[ -n "$script_version" && "$installed_version" != "$script_version" ]]; then
-                # 设置全局标志，表示有更新可用
                 update_available=true
-                current_installed_version="$installed_version"
-                latest_available_version="$script_version"
             fi
         fi
     fi
@@ -811,14 +814,40 @@ updateSnellServer(){
     echo -e "${Info} 准备更新 Snell Server..."
     
     # 检查是否有更新可用
+    force_checked=false
     if [[ "$update_available" != true ]]; then
         echo -e "${Info} 当前已是最新版本，无需更新！"
         echo -e "${Info} 当前版本: ${Green_font_prefix}v${current_installed_version}${Font_color_suffix}"
-        sleep 3s
-        startMenu
-        return 0
+        echo
+        echo -e "${Tip} 是否要强制重新检查最新版本？(y/N)"
+        read -e -p "(默认: n):" force_check
+        [[ -z "${force_check}" ]] && force_check="n"
+        
+        if [[ ${force_check} == [Yy] ]]; then
+            echo -e "${Info} 强制重新检查最新版本..."
+            # 清除缓存并重新检查
+            rm -f /tmp/snell_version_cache
+            updateBuiltinVersions
+            checkVersionUpdate
+            force_checked=true
+            
+            # 重新检查后如果有更新，继续更新流程
+            if [[ "$update_available" == true ]]; then
+                echo -e "${Info} 检测到新版本，继续更新流程..."
+            else
+                echo -e "${Info} 重新检查后仍为最新版本"
+                sleep 3s
+                startMenu
+                return 0
+            fi
+        else
+            sleep 3s
+            startMenu
+            return 0
+        fi
     fi
     
+    # 显示版本信息
     echo -e "${Info} 当前版本: ${Yellow_font_prefix}v${current_installed_version}${Font_color_suffix}"
     echo -e "${Info} 最新版本: ${Green_font_prefix}v${latest_available_version}${Font_color_suffix}"
     echo -e "确定要更新吗？(Y/n)"
@@ -888,6 +917,91 @@ updateSnellServer(){
         echo -e "${Error} 下载失败，启动原版本"
         systemctl start snell-server
     fi
+    
+    sleep 3s
+    startMenu
+}
+
+# 自动获取 Snell 最新版本号
+getLatestVersionFromWeb(){
+    local version_type=$1
+    local release_page="https://kb.nssurge.com/surge-knowledge-base/zh/release-notes/snell"
+    
+    page_content=$(curl -s -L --max-time 10 "$release_page" 2>/dev/null)
+    
+    if [[ -z "$page_content" ]]; then
+        return 1
+    fi
+    
+    if [[ "$version_type" == "v4" ]]; then
+        latest_v4=$(echo "$page_content" | grep -oE "snell-server-v4\.[0-9]+\.[0-9]+-linux" | head -1 | sed 's/snell-server-v//g' | sed 's/-linux//g')
+        if [[ -n "$latest_v4" ]]; then
+            echo "$latest_v4"
+            return 0
+        fi
+    elif [[ "$version_type" == "v5" ]]; then
+        latest_v5=$(echo "$page_content" | grep -oE "snell-server-v5\.[0-9]+\.[0-9]+[a-z]*[0-9]*-linux" | head -1 | sed 's/snell-server-v//g' | sed 's/-linux//g')
+        if [[ -n "$latest_v5" ]]; then
+            echo "$latest_v5"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# 更新脚本内置版本号（带缓存机制）
+updateBuiltinVersions(){
+    local cache_file="/tmp/snell_version_cache"
+    local cache_time=3600
+    local current_time=$(date +%s)
+    
+    # 检查缓存是否存在且有效
+    if [[ -f "$cache_file" ]]; then
+        local cache_timestamp=$(head -1 "$cache_file" 2>/dev/null)
+        if [[ -n "$cache_timestamp" && $((current_time - cache_timestamp)) -lt $cache_time ]]; then
+            local cached_v4=$(sed -n '2p' "$cache_file" 2>/dev/null)
+            local cached_v5=$(sed -n '3p' "$cache_file" 2>/dev/null)
+            if [[ -n "$cached_v4" && -n "$cached_v5" ]]; then
+                snell_v4_version="$cached_v4"
+                snell_v5_version="$cached_v5"
+                return 0
+            fi
+        fi
+    fi
+    
+    echo -e "${Info} 正在检查官方最新版本..."
+    
+    # 获取最新的 v4 版本
+    local latest_v4_web
+    latest_v4_web=$(getLatestVersionFromWeb "v4")
+    if [[ $? -eq 0 && -n "$latest_v4_web" ]]; then
+        snell_v4_version="$latest_v4_web"
+    fi
+    
+    # 获取最新的 v5 版本
+    local latest_v5_web
+    latest_v5_web=$(getLatestVersionFromWeb "v5")
+    if [[ $? -eq 0 && -n "$latest_v5_web" ]]; then
+        snell_v5_version="$latest_v5_web"
+    fi
+    
+    # 更新缓存
+    echo "$current_time" > "$cache_file"
+    echo "$snell_v4_version" >> "$cache_file"
+    echo "$snell_v5_version" >> "$cache_file"
+}
+
+# 强制检查最新版本（清除缓存）
+forceCheckVersions(){
+    echo -e "${Info} 强制检查 Snell 最新版本..."
+    
+    rm -f "/tmp/snell_version_cache"
+    updateBuiltinVersions
+    
+    echo -e "${Info} 版本检查完成！"
+    echo -e "${Info} 当前脚本 v4 版本: ${Green_font_prefix}${snell_v4_version}${Font_color_suffix}"
+    echo -e "${Info} 当前脚本 v5 版本: ${Green_font_prefix}${snell_v5_version}${Font_color_suffix}"
     
     sleep 3s
     startMenu
@@ -1056,6 +1170,13 @@ startMenu(){
     action=$1
     
     # 检查版本更新（在显示菜单前）
+    # 首先更新内置版本号（从官方页面获取最新版本，有缓存机制）
+    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+        # 只有安装了 Snell 才检查版本更新
+        updateBuiltinVersions
+    fi
+    
+    # 然后检查已安装版本是否需要更新
     checkVersionUpdate
     
     # 检查是否安装了 v4 版本，需要显示 v4 到 v5 更新选项
