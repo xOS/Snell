@@ -1084,7 +1084,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
     if [[ "$show_v4_to_v5_option" == true ]]; then
         # v4 版本，同时显示两个更新选项
         if [[ "$update_available" == true ]]; then
-            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(有新版)${Font_color_suffix}"
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(可更新)${Font_color_suffix}"
         else
             echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server"
         fi
@@ -1102,7 +1102,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
         menu_max=10
     elif [[ "$show_update_option" == true ]]; then
         if [[ "$update_available" == true ]]; then
-            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(有新版)${Font_color_suffix}"
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(可更新)${Font_color_suffix}"
         else
             echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server"
         fi
