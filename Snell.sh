@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.4"
+sh_ver="1.7.5"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b2"
 script_dir=$(cd "$(dirname "$0")"; pwd)
@@ -145,27 +145,33 @@ checkStatus(){
 
 # 检查版本更新
 checkVersionUpdate(){
+    update_available=false
     if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
         current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
         
-        # 只检查 v5 版本的更新，但不提示用户，仅设置标志
-        if [[ "$current_ver" == "5" ]]; then
-            # 读取当前安装的版本号
-            if [[ -e ${snell_version_file} ]]; then
-                installed_version=$(cat ${snell_version_file} | sed 's/^v//')
-                script_version=${snell_v5_version}
-                
-                if [[ "$installed_version" != "$script_version" ]]; then
-                    # 设置全局标志，表示有 v5 更新可用
-                    v5_update_available=true
-                    v5_current_version="$installed_version"
-                    v5_latest_version="$script_version"
-                else
-                    v5_update_available=false
-                fi
+        # 检查所有版本的更新，设置标志
+        if [[ -e ${snell_version_file} ]]; then
+            installed_version=$(cat ${snell_version_file} | sed 's/^v//')
+            
+            # 根据当前版本确定最新版本
+            case "$current_ver" in
+                "4")
+                    script_version=${snell_v4_version}
+                    ;;
+                "5")
+                    script_version=${snell_v5_version}
+                    ;;
+                *)
+                    script_version=""
+                    ;;
+            esac
+            
+            if [[ -n "$script_version" && "$installed_version" != "$script_version" ]]; then
+                # 设置全局标志，表示有更新可用
+                update_available=true
+                current_installed_version="$installed_version"
+                latest_available_version="$script_version"
             fi
-        else
-            v5_update_available=false
         fi
     fi
 }
@@ -797,34 +803,36 @@ updateV4toV5(){
 	startMenu
 }
 
-# 升级 Snell v5 到最新版本
-upgradeSnellV5(){
+# 更新 Snell Server 到最新版本
+updateSnellServer(){
     checkInstalledStatus
     readConfig
     
-    # 检查当前版本是否为 v5
-    if [[ "$ver" != "5" ]]; then
-        echo -e "${Error} 当前版本不是 v5，无法使用此功能！当前版本：v${ver}"
+    echo -e "${Info} 准备更新 Snell Server..."
+    
+    # 检查是否有更新可用
+    if [[ "$update_available" != true ]]; then
+        echo -e "${Info} 当前已是最新版本，无需更新！"
+        echo -e "${Info} 当前版本: ${Green_font_prefix}v${current_installed_version}${Font_color_suffix}"
         sleep 3s
         startMenu
-        return 1
+        return 0
     fi
     
-    echo -e "${Info} 即将升级 Snell v5 到最新版本..."
-    echo -e "${Info} 当前版本: ${Yellow_font_prefix}v${v5_current_version}${Font_color_suffix}"
-    echo -e "${Info} 最新版本: ${Green_font_prefix}v${v5_latest_version}${Font_color_suffix}"
-    echo -e "确定要升级吗？(Y/n)"
+    echo -e "${Info} 当前版本: ${Yellow_font_prefix}v${current_installed_version}${Font_color_suffix}"
+    echo -e "${Info} 最新版本: ${Green_font_prefix}v${latest_available_version}${Font_color_suffix}"
+    echo -e "确定要更新吗？(Y/n)"
     read -e -p "(默认: y):" confirm
     [[ -z "${confirm}" ]] && confirm="y"
     
     if [[ ${confirm} == [Nn] ]]; then
-        echo -e "${Info} 已取消升级"
+        echo -e "${Info} 已取消更新"
         sleep 2s
         startMenu
         return 0
     fi
     
-    echo -e "${Info} 开始升级 Snell v5 到最新版本..."
+    echo -e "${Info} 开始更新 Snell Server 到最新版本..."
     
     # 停止服务
     echo -e "${Info} 停止 Snell Server 服务..."
@@ -833,12 +841,26 @@ upgradeSnellV5(){
     # 备份当前二进制文件
     if [[ -e "${snell_bin}" ]]; then
         echo -e "${Info} 备份当前程序文件..."
-        cp "${snell_bin}" "${snell_bin}.v5.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "${snell_bin}" "${snell_bin}.backup.$(date +%Y%m%d_%H%M%S)"
     fi
     
-    # 下载并安装最新 v5
-    echo -e "${Info} 开始下载最新 v5 版本..."
-    downloadSnell "${snell_v5_version}" "v5 Beta 最新版"
+    # 根据版本选择下载函数
+    echo -e "${Info} 开始下载最新版本..."
+    case "$ver" in
+        "4")
+            downloadSnell "${snell_v4_version}" "v4 最新版"
+            ;;
+        "5")
+            downloadSnell "${snell_v5_version}" "v5 Beta 最新版"
+            ;;
+        *)
+            echo -e "${Error} 不支持的版本: v${ver}"
+            systemctl start snell-server
+            sleep 3s
+            startMenu
+            return 1
+            ;;
+    esac
     
     if [[ $? -eq 0 ]]; then
         # 重新加载 systemd 并启动服务
@@ -850,12 +872,12 @@ upgradeSnellV5(){
         sleep 2
         checkStatus
         if [[ "$status" == "running" ]]; then
-            echo -e "${Info} v5 升级成功！"
-            echo -e "${Info} 当前版本：v${snell_v5_version} ${Yellow_font_prefix}Beta${Font_color_suffix}"
+            echo -e "${Info} Snell Server 更新成功！"
+            echo -e "${Info} 当前版本：v${latest_available_version}"
         else
             echo -e "${Error} 服务启动失败，正在回滚..."
             # 回滚到备份版本
-            backup_file=$(ls -t "${snell_bin}".v5.backup.* 2>/dev/null | head -1)
+            backup_file=$(ls -t "${snell_bin}".backup.* 2>/dev/null | head -1)
             if [[ -n "$backup_file" && -e "$backup_file" ]]; then
                 cp "$backup_file" "${snell_bin}"
                 systemctl start snell-server
@@ -863,7 +885,7 @@ upgradeSnellV5(){
             fi
         fi
     else
-        echo -e "${Error} v5 下载失败，启动原版本"
+        echo -e "${Error} 下载失败，启动原版本"
         systemctl start snell-server
     fi
     
@@ -1036,17 +1058,17 @@ startMenu(){
     # 检查版本更新（在显示菜单前）
     checkVersionUpdate
     
-    # 检查是否安装了 v4 版本或需要显示 v5 更新选项
+    # 检查是否安装了 v4 版本，需要显示 v4 到 v5 更新选项
     show_v4_to_v5_option=false
-    show_v5_update_option=false
+    show_update_option=false
     
     if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
         current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
         if [[ "$current_ver" == "4" ]]; then
             show_v4_to_v5_option=true
-        elif [[ "$current_ver" == "5" && "$v5_update_available" == true ]]; then
-            show_v5_update_option=true
         fi
+        # 只要已安装就显示更新选项
+        show_update_option=true
     fi
     
     echo && echo -e "  
@@ -1060,9 +1082,31 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
     
     # 根据不同情况显示更新选项
     if [[ "$show_v4_to_v5_option" == true ]]; then
-        echo -e "——————————————————————————————
- ${Green_font_prefix} 3.${Font_color_suffix} v4 更新到 v5${Yellow_font_prefix}(Beta)${Font_color_suffix}
+        # v4 版本，同时显示两个更新选项
+        if [[ "$update_available" == true ]]; then
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(有新版)${Font_color_suffix}"
+        else
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server"
+        fi
+        echo -e " ${Green_font_prefix} 4.${Font_color_suffix} v4 更新到 v5${Yellow_font_prefix}(Beta)${Font_color_suffix}
 ——————————————————————————————
+ ${Green_font_prefix} 5.${Font_color_suffix} 启动 Snell Server
+ ${Green_font_prefix} 6.${Font_color_suffix} 停止 Snell Server
+ ${Green_font_prefix} 7.${Font_color_suffix} 重启 Snell Server
+——————————————————————————————
+ ${Green_font_prefix} 8.${Font_color_suffix} 设置 配置信息
+ ${Green_font_prefix} 9.${Font_color_suffix} 查看 配置信息
+ ${Green_font_prefix}10.${Font_color_suffix} 查看 运行状态
+——————————————————————————————
+ ${Green_font_prefix}00.${Font_color_suffix} 退出脚本"
+        menu_max=10
+    elif [[ "$show_update_option" == true ]]; then
+        if [[ "$update_available" == true ]]; then
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server ${Yellow_font_prefix}(有新版)${Font_color_suffix}"
+        else
+            echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server"
+        fi
+        echo -e "——————————————————————————————
  ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
  ${Green_font_prefix} 5.${Font_color_suffix} 停止 Snell Server
  ${Green_font_prefix} 6.${Font_color_suffix} 重启 Snell Server
@@ -1071,22 +1115,8 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本"
-        menu_max=10
-    elif [[ "$show_v5_update_option" == true ]]; then
-        echo -e "——————————————————————————————
- ${Green_font_prefix} 3.${Font_color_suffix} 升级 v5 到最新版${Yellow_font_prefix}(${v5_current_version}→${v5_latest_version})${Font_color_suffix}
-——————————————————————————————
- ${Green_font_prefix} 4.${Font_color_suffix} 启动 Snell Server
- ${Green_font_prefix} 5.${Font_color_suffix} 停止 Snell Server
- ${Green_font_prefix} 6.${Font_color_suffix} 重启 Snell Server
-——————————————————————————————
- ${Green_font_prefix} 7.${Font_color_suffix} 设置 配置信息
- ${Green_font_prefix} 8.${Font_color_suffix} 查看 配置信息
- ${Green_font_prefix} 9.${Font_color_suffix} 查看 运行状态
-——————————————————————————————
- ${Green_font_prefix} 10.${Font_color_suffix} 退出脚本"
-        menu_max=10
+ ${Green_font_prefix}00.${Font_color_suffix} 退出脚本"
+        menu_max=9
     else
         echo -e "——————————————————————————————
  ${Green_font_prefix} 3.${Font_color_suffix} 启动 Snell Server
@@ -1097,8 +1127,8 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
  ${Green_font_prefix} 7.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix} 8.${Font_color_suffix} 查看 运行状态
 ——————————————————————————————
- ${Green_font_prefix} 9.${Font_color_suffix} 退出脚本"
-        menu_max=9
+ ${Green_font_prefix}00.${Font_color_suffix} 退出脚本"
+        menu_max=8
     fi
     
     echo "==============================" && echo
@@ -1114,10 +1144,12 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
     fi
     echo
     
-    if [[ "$menu_max" == "10" ]]; then
+    if [[ "$show_v4_to_v5_option" == true ]]; then
         read -e -p " 请输入数字[0-10]:" num
-    else
+    elif [[ "$show_update_option" == true ]]; then
         read -e -p " 请输入数字[0-9]:" num
+    else
+        read -e -p " 请输入数字[0-8]:" num
     fi
     
     # 根据不同菜单模式处理用户输入
@@ -1133,27 +1165,30 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
             uninstallSnell
             ;;
             3)
-            updateV4toV5
+            updateSnellServer
             ;;
             4)
-            startSnell
+            updateV4toV5
             ;;
             5)
-            stopSnell
+            startSnell
             ;;
             6)
-            restartSnell
+            stopSnell
             ;;
             7)
-            setConfig
+            restartSnell
             ;;
             8)
-            viewConfig
+            setConfig
             ;;
             9)
-            viewStatus
+            viewConfig
             ;;
             10)
+            viewStatus
+            ;;
+            00)
             exit 1
             ;;
             *)
@@ -1162,7 +1197,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
             startMenu
             ;;
         esac
-    elif [[ "$show_v5_update_option" == true ]]; then
+    elif [[ "$show_update_option" == true ]]; then
         case "$num" in
             0)
             updateShell
@@ -1174,7 +1209,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
             uninstallSnell
             ;;
             3)
-            upgradeSnellV5
+            updateSnellServer
             ;;
             4)
             startSnell
@@ -1194,11 +1229,11 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
             9)
             viewStatus
             ;;
-            10)
+            00)
             exit 1
             ;;
             *)
-            echo -e "请输入正确数字${Yellow_font_prefix}[0-10]${Font_color_suffix}"
+            echo -e "请输入正确数字${Yellow_font_prefix}[0-9]${Font_color_suffix}"
             sleep 2s
             startMenu
             ;;
@@ -1232,11 +1267,11 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
             8)
             viewStatus
             ;;
-            9)
+            00)
             exit 1
             ;;
             *)
-            echo -e "请输入正确数字${Yellow_font_prefix}[0-9]${Font_color_suffix}"
+            echo -e "请输入正确数字${Yellow_font_prefix}[0-8]${Font_color_suffix}"
             sleep 2s
             startMenu
             ;;
