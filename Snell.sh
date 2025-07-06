@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.2"
+sh_ver="1.7.3"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b2"
 script_dir=$(cd "$(dirname "$0")"; pwd)
@@ -143,6 +143,39 @@ checkStatus(){
     fi
 }
 
+# 检查版本更新
+checkVersionUpdate(){
+    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+        current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
+        
+        # 只检查 v5 版本的更新
+        if [[ "$current_ver" == "5" ]]; then
+            # 读取当前安装的版本号
+            if [[ -e ${snell_version_file} ]]; then
+                installed_version=$(cat ${snell_version_file} | sed 's/^v//')
+                script_version=${snell_v5_version}
+                
+                if [[ "$installed_version" != "$script_version" ]]; then
+                    echo -e "${Tip} 检测到 Snell v5 版本不一致："
+                    echo -e "   当前安装版本: ${Yellow_font_prefix}v${installed_version}${Font_color_suffix}"
+                    echo -e "   脚本最新版本: ${Green_font_prefix}v${script_version}${Font_color_suffix}"
+                    echo -e "是否立即升级到最新版本？(Y/n)"
+                    read -e -p "(默认: y):" upgrade_confirm
+                    [[ -z "${upgrade_confirm}" ]] && upgrade_confirm="y"
+                    
+                    if [[ ${upgrade_confirm} == [Nn] ]]; then
+                        echo -e "${Info} 已跳过版本升级"
+                    else
+                        echo -e "${Info} 开始升级 Snell v5 到最新版本..."
+                        upgradeSnellV5
+                        return 0
+                    fi
+                fi
+            fi
+        fi
+    fi
+}
+
 
 # 获取 Snell 下载链接
 getSnellDownloadUrl(){
@@ -169,7 +202,7 @@ downloadSnellV2() {
     rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
     chmod +x snell-server
     mv -f snell-server "${snell_bin}"
-    echo "v2.0.6" > "${snell_v4_version_file}"
+    echo "v2.0.6" > "${snell_version_file}"
     echo -e "${Info} Snell Server v2 下载安装完毕！"
     return 0
 }
@@ -770,6 +803,61 @@ updateV4toV5(){
 	startMenu
 }
 
+# 升级 Snell v5 到最新版本
+upgradeSnellV5(){
+    checkInstalledStatus
+    readConfig
+    
+    # 检查当前版本是否为 v5
+    if [[ "$ver" != "5" ]]; then
+        echo -e "${Error} 当前版本不是 v5，无法使用此功能！当前版本：v${ver}"
+        return 1
+    fi
+    
+    echo -e "${Info} 开始升级 Snell v5 到最新版本..."
+    
+    # 停止服务
+    echo -e "${Info} 停止 Snell Server 服务..."
+    systemctl stop snell-server
+    
+    # 备份当前二进制文件
+    if [[ -e "${snell_bin}" ]]; then
+        echo -e "${Info} 备份当前程序文件..."
+        cp "${snell_bin}" "${snell_bin}.v5.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
+    
+    # 下载并安装最新 v5
+    echo -e "${Info} 开始下载最新 v5 版本..."
+    downloadSnell "${snell_v5_version}" "v5 Beta 最新版"
+    
+    if [[ $? -eq 0 ]]; then
+        # 重新加载 systemd 并启动服务
+        echo -e "${Info} 重启 Snell Server 服务..."
+        systemctl daemon-reload
+        systemctl start snell-server
+        
+        # 检查服务状态
+        sleep 2
+        checkStatus
+        if [[ "$status" == "running" ]]; then
+            echo -e "${Info} v5 升级成功！"
+            echo -e "${Info} 当前版本：v${snell_v5_version} ${Yellow_font_prefix}Beta${Font_color_suffix}"
+        else
+            echo -e "${Error} 服务启动失败，正在回滚..."
+            # 回滚到备份版本
+            backup_file=$(ls -t "${snell_bin}".v5.backup.* 2>/dev/null | head -1)
+            if [[ -n "$backup_file" && -e "$backup_file" ]]; then
+                cp "$backup_file" "${snell_bin}"
+                systemctl start snell-server
+                echo -e "${Info} 已回滚到备份版本"
+            fi
+        fi
+    else
+        echo -e "${Error} v5 下载失败，启动原版本"
+        systemctl start snell-server
+    fi
+}
+
 # 卸载 Snell
 uninstallSnell(){
 	checkInstalledStatus
@@ -931,6 +1019,9 @@ startMenu(){
     checkSys
     sysArch
     action=$1
+    
+    # 检查版本更新（在显示菜单前）
+    checkVersionUpdate
     
     # 检查是否安装了 v4 版本
     show_v4_to_v5_option=false
