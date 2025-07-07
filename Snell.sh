@@ -9,9 +9,9 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.7.8"
+sh_ver="1.8.0"
 snell_v4_version="4.1.1"
-snell_v5_version="5.0.0b2"
+snell_v5_version="5.0.0b3"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
@@ -143,37 +143,121 @@ checkStatus(){
     fi
 }
 
+# 版本号比较函数
+compareVersions(){
+    local version1="$1"
+    local version2="$2"
+    
+    # 移除版本号前缀 v
+    version1=$(echo "$version1" | sed 's/^v//')
+    version2=$(echo "$version2" | sed 's/^v//')
+    
+    # 如果版本号完全相同
+    if [[ "$version1" == "$version2" ]]; then
+        return 1  # 相等
+    fi
+    
+    # 使用 sort -V 进行版本号比较
+    if printf '%s\n' "$version1" "$version2" | sort -V | head -1 | grep -q "^$version1$"; then
+        return 2  # version1 < version2
+    else
+        return 0  # version1 > version2
+    fi
+}
+
+# 验证版本 URL 是否有效
+validateVersionUrl(){
+    local version="$1"
+    getSnellDownloadUrl "$version"
+    
+    # 使用 HEAD 请求检查 URL 是否有效
+    if curl -I -s --max-time 10 "$snell_url" | head -1 | grep -q "200 OK"; then
+        return 0  # URL 有效
+    else
+        return 1  # URL 无效
+    fi
+}
+
 # 检查版本更新
 checkVersionUpdate(){
+    local show_info=${1:-false}  # 是否显示详细信息，默认为静默
     update_available=false
     current_installed_version=""
     latest_available_version=""
+    best_version=""
     
     if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
         current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
         
         if [[ -e ${snell_version_file} ]]; then
             installed_version=$(cat ${snell_version_file} | sed 's/^v//')
+            current_installed_version="$installed_version"
             
-            # 根据当前版本确定最新版本
+            # 根据当前版本确定对应的脚本版本和网页版本
             case "$current_ver" in
                 "4")
                     script_version=${snell_v4_version}
+                    web_version=$(getLatestVersionFromWeb "v4")
                     ;;
                 "5")
                     script_version=${snell_v5_version}
+                    web_version=$(getLatestVersionFromWeb "v5")
                     ;;
                 *)
                     script_version=""
+                    web_version=""
                     ;;
             esac
             
-            current_installed_version="$installed_version"
-            latest_available_version="$script_version"
+            # 优先使用脚本内置版本，除非网页版本更新
+            best_version="$installed_version"
+            version_source="已安装"
             
-            # 直接比较版本号字符串，网页版本优先
-            if [[ -n "$script_version" && "$installed_version" != "$script_version" ]]; then
+            # 首先比较脚本内置版本
+            if [[ -n "$script_version" ]]; then
+                compareVersions "$best_version" "$script_version"
+                case $? in
+                    2)  # best_version < script_version
+                        # 验证脚本内置版本的 URL 是否有效
+                        if validateVersionUrl "$script_version"; then
+                            best_version="$script_version"
+                            version_source="脚本内置"
+                        else
+                            [[ "$show_info" == true ]] && echo -e "${Tip} 脚本内置版本 v${script_version} 的下载链接无效，跳过"
+                        fi
+                        ;;
+                esac
+            fi
+            
+            # 然后比较网页版本，只有当网页版本比当前最佳版本更新时才采用
+            if [[ -n "$web_version" ]]; then
+                compareVersions "$best_version" "$web_version"
+                case $? in
+                    2)  # best_version < web_version
+                        # 验证网页版本的 URL 是否有效
+                        if validateVersionUrl "$web_version"; then
+                            best_version="$web_version"
+                            version_source="官方网页"
+                        else
+                            [[ "$show_info" == true ]] && echo -e "${Tip} 网页版本 v${web_version} 的下载链接无效，使用脚本内置版本"
+                        fi
+                        ;;
+                    1|0)  # best_version >= web_version
+                        # 脚本内置版本优先，无需显示
+                        ;;
+                esac
+            fi
+            
+            latest_available_version="$best_version"
+            
+            # 如果最佳版本与当前安装版本不同，则有更新可用
+            compareVersions "$installed_version" "$best_version"
+            if [[ $? -eq 2 ]]; then
                 update_available=true
+                if [[ "$show_info" == true ]]; then
+                    echo -e "${Info} 发现更新：当前版本 v${installed_version} -> 最新版本 v${best_version}"
+                    echo -e "${Info} 更新版本来源：${version_source}"
+                fi
             fi
         fi
     fi
@@ -244,12 +328,36 @@ downloadSnellV5(){
 	downloadSnell "${snell_v5_version}" "v5 Beta 官网源版"
 }
 
-# 通用下载并安装 Snell 函数
+# 通用下载并安装 Snell 函数（带回退机制）
 downloadSnell(){
 	local version=$1
 	local version_type=$2
+	local allow_fallback=${3:-false}
+	local fallback_version=$4
+	
 	echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
 	getSnellDownloadUrl "${version}"
+	
+	# 首先检查 URL 是否有效
+	if ! curl -I -s --max-time 10 "$snell_url" | head -1 | grep -q "200 OK"; then
+		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载链接无效 (404)！"
+		
+		# 如果允许回退且提供了回退版本
+		if [[ "$allow_fallback" == true && -n "$fallback_version" ]]; then
+			echo -e "${Info} 尝试回退到已安装版本 v${fallback_version}..."
+			getSnellDownloadUrl "${fallback_version}"
+			if curl -I -s --max-time 10 "$snell_url" | head -1 | grep -q "200 OK"; then
+				version="$fallback_version"
+				echo -e "${Info} 回退成功，使用版本 v${version}"
+			else
+				echo -e "${Error} 回退版本也无法下载！"
+				return 1
+			fi
+		else
+			return 1
+		fi
+	fi
+	
 	wget --no-check-certificate -N "${snell_url}"
 	if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
@@ -766,9 +874,42 @@ updateV4toV5(){
 		cp "${snell_bin}" "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)"
 	fi
 	
-	# 下载并安装 v5
+	# 获取当前安装的 v4 版本作为回退版本
+	current_v4_version=$(cat ${snell_version_file} | sed 's/^v//')
+	
+	# 获取最新的 v5 版本号（优先使用网页版本，然后是脚本内置版本）
+	web_v5_version=$(getLatestVersionFromWeb "v5")
+	script_v5_version="${snell_v5_version}"
+	
+	# 选择最新的 v5 版本
+	target_v5_version=""
+	if [[ -n "$web_v5_version" ]]; then
+		if validateVersionUrl "$web_v5_version"; then
+			target_v5_version="$web_v5_version"
+			echo -e "${Info} 使用网页获取的 v5 版本: v${target_v5_version}"
+		fi
+	fi
+	
+	# 如果网页版本无效，尝试脚本内置版本
+	if [[ -z "$target_v5_version" && -n "$script_v5_version" ]]; then
+		if validateVersionUrl "$script_v5_version"; then
+			target_v5_version="$script_v5_version"
+			echo -e "${Info} 使用脚本内置的 v5 版本: v${target_v5_version}"
+		fi
+	fi
+	
+	# 如果都无效，取消更新
+	if [[ -z "$target_v5_version" ]]; then
+		echo -e "${Error} 无法找到有效的 v5 版本进行更新"
+		systemctl start snell-server
+		sleep 3s
+		startMenu
+		return 1
+	fi
+	
+	# 下载并安装 v5，启用回退机制
 	echo -e "${Info} 开始下载 v5 版本..."
-	downloadSnell "${snell_v5_version}" "v5 Beta 官网源版"
+	downloadSnell "${target_v5_version}" "v5 Beta 版本" true "${current_v4_version}"
 	
 	if [[ $? -eq 0 ]]; then
 		# 更新配置文件中的版本号
@@ -784,14 +925,22 @@ updateV4toV5(){
 		sleep 2
 		checkStatus
 		if [[ "$status" == "running" ]]; then
+			actual_version=$(cat ${snell_version_file} | sed 's/^v//')
 			echo -e "${Info} v4 到 v5 更新成功！"
-			echo -e "${Info} 当前版本：v5 ${Yellow_font_prefix}Beta${Font_color_suffix}"
+			echo -e "${Info} 当前版本：v${actual_version} ${Yellow_font_prefix}Beta${Font_color_suffix}"
+			
+			# 如果实际版本是 v4（说明回退了），更新配置文件版本号
+			if [[ "$actual_version" =~ ^4\. ]]; then
+				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
+				echo -e "${Tip} 注意：由于下载链接问题，已回退到 v4 版本"
+			fi
 		else
 			echo -e "${Error} 服务启动失败，正在回滚..."
 			# 回滚到 v4
 			backup_file=$(ls -t "${snell_bin}".v4.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
 				cp "$backup_file" "${snell_bin}"
+				echo "v${current_v4_version}" > ${snell_version_file}
 				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 v4 版本"
@@ -813,6 +962,11 @@ updateSnellServer(){
     
     echo -e "${Info} 准备更新 Snell Server..."
     
+    # 显示详细的版本检查信息
+    echo -e "${Info} 正在检查版本信息..."
+    updateBuiltinVersions true
+    checkVersionUpdate true
+    
     # 检查是否有更新可用
     force_checked=false
     if [[ "$update_available" != true ]]; then
@@ -827,8 +981,8 @@ updateSnellServer(){
             echo -e "${Info} 强制重新检查最新版本..."
             # 清除缓存并重新检查
             rm -f /tmp/snell_version_cache
-            updateBuiltinVersions
-            checkVersionUpdate
+            updateBuiltinVersions true
+            checkVersionUpdate true
             force_checked=true
             
             # 重新检查后如果有更新，继续更新流程
@@ -873,14 +1027,14 @@ updateSnellServer(){
         cp "${snell_bin}" "${snell_bin}.backup.$(date +%Y%m%d_%H%M%S)"
     fi
     
-    # 根据版本选择下载函数
+    # 根据版本选择下载函数，启用回退机制
     echo -e "${Info} 开始下载最新版本..."
     case "$ver" in
         "4")
-            downloadSnell "${snell_v4_version}" "v4 最新版"
+            downloadSnell "${latest_available_version}" "v4 最新版" true "${current_installed_version}"
             ;;
         "5")
-            downloadSnell "${snell_v5_version}" "v5 Beta 最新版"
+            downloadSnell "${latest_available_version}" "v5 Beta 最新版" true "${current_installed_version}"
             ;;
         *)
             echo -e "${Error} 不支持的版本: v${ver}"
@@ -901,16 +1055,23 @@ updateSnellServer(){
         sleep 2
         checkStatus
         if [[ "$status" == "running" ]]; then
+            actual_version=$(cat ${snell_version_file} | sed 's/^v//')
             echo -e "${Info} Snell Server 更新成功！"
-            echo -e "${Info} 当前版本：v${latest_available_version}"
+            echo -e "${Info} 当前版本：v${actual_version}"
+            
+            # 如果实际更新版本与预期不同，给出提示
+            if [[ "$actual_version" != "$latest_available_version" ]]; then
+                echo -e "${Tip} 注意：由于下载链接问题，已回退到 v${actual_version} 版本"
+            fi
         else
             echo -e "${Error} 服务启动失败，正在回滚..."
             # 回滚到备份版本
             backup_file=$(ls -t "${snell_bin}".backup.* 2>/dev/null | head -1)
             if [[ -n "$backup_file" && -e "$backup_file" ]]; then
                 cp "$backup_file" "${snell_bin}"
+                echo "v${current_installed_version}" > ${snell_version_file}
                 systemctl start snell-server
-                echo -e "${Info} 已回滚到备份版本"
+                echo -e "${Info} 已回滚到备份版本 v${current_installed_version}"
             fi
         fi
     else
@@ -950,8 +1111,9 @@ getLatestVersionFromWeb(){
     return 1
 }
 
-# 更新脚本内置版本号（带缓存机制）
+# 更新脚本内置版本号（带缓存机制，但保持脚本版本优先级）
 updateBuiltinVersions(){
+    local show_info=${1:-false}  # 是否显示详细信息，默认为静默
     local cache_file="/tmp/snell_version_cache"
     local cache_time=3600
     local current_time=$(date +%s)
@@ -963,33 +1125,64 @@ updateBuiltinVersions(){
             local cached_v4=$(sed -n '2p' "$cache_file" 2>/dev/null)
             local cached_v5=$(sed -n '3p' "$cache_file" 2>/dev/null)
             if [[ -n "$cached_v4" && -n "$cached_v5" ]]; then
-                snell_v4_version="$cached_v4"
-                snell_v5_version="$cached_v5"
+                # 检查网页版本是否比脚本内置版本更新
+                compareVersions "${snell_v4_version}" "$cached_v4"
+                if [[ $? -eq 2 ]]; then
+                    web_v4_newer=true
+                else
+                    web_v4_newer=false
+                fi
+                
+                compareVersions "${snell_v5_version}" "$cached_v5"
+                if [[ $? -eq 2 ]]; then
+                    web_v5_newer=true
+                else
+                    web_v5_newer=false
+                fi
+                
                 return 0
             fi
         fi
     fi
     
-    echo -e "${Info} 正在检查官方最新版本..."
+    [[ "$show_info" == true ]] && echo -e "${Info} 正在检查官方最新版本..."
     
     # 获取最新的 v4 版本
     local latest_v4_web
     latest_v4_web=$(getLatestVersionFromWeb "v4")
     if [[ $? -eq 0 && -n "$latest_v4_web" ]]; then
-        snell_v4_version="$latest_v4_web"
+        # 比较网页版本和脚本内置版本
+        compareVersions "${snell_v4_version}" "$latest_v4_web"
+        if [[ $? -eq 2 ]]; then
+            web_v4_newer=true
+        else
+            web_v4_newer=false
+        fi
+    else
+        web_v4_newer=false
+        latest_v4_web="${snell_v4_version}"
     fi
     
     # 获取最新的 v5 版本
     local latest_v5_web
     latest_v5_web=$(getLatestVersionFromWeb "v5")
     if [[ $? -eq 0 && -n "$latest_v5_web" ]]; then
-        snell_v5_version="$latest_v5_web"
+        # 比较网页版本和脚本内置版本
+        compareVersions "${snell_v5_version}" "$latest_v5_web"
+        if [[ $? -eq 2 ]]; then
+            web_v5_newer=true
+        else
+            web_v5_newer=false
+        fi
+    else
+        web_v5_newer=false
+        latest_v5_web="${snell_v5_version}"
     fi
     
     # 更新缓存
     echo "$current_time" > "$cache_file"
-    echo "$snell_v4_version" >> "$cache_file"
-    echo "$snell_v5_version" >> "$cache_file"
+    echo "$latest_v4_web" >> "$cache_file"
+    echo "$latest_v5_web" >> "$cache_file"
 }
 
 # 强制检查最新版本（清除缓存）
@@ -997,11 +1190,35 @@ forceCheckVersions(){
     echo -e "${Info} 强制检查 Snell 最新版本..."
     
     rm -f "/tmp/snell_version_cache"
-    updateBuiltinVersions
+    updateBuiltinVersions true
     
     echo -e "${Info} 版本检查完成！"
-    echo -e "${Info} 当前脚本 v4 版本: ${Green_font_prefix}${snell_v4_version}${Font_color_suffix}"
-    echo -e "${Info} 当前脚本 v5 版本: ${Green_font_prefix}${snell_v5_version}${Font_color_suffix}"
+    echo -e "${Info} 脚本内置 v4 版本: ${Green_font_prefix}${snell_v4_version}${Font_color_suffix}"
+    echo -e "${Info} 脚本内置 v5 版本: ${Green_font_prefix}${snell_v5_version}${Font_color_suffix}"
+    
+    # 获取网页版本进行对比
+    web_v4=$(getLatestVersionFromWeb "v4")
+    web_v5=$(getLatestVersionFromWeb "v5")
+    
+    if [[ -n "$web_v4" ]]; then
+        echo -e "${Info} 网页获取 v4 版本: ${Yellow_font_prefix}${web_v4}${Font_color_suffix}"
+        compareVersions "${snell_v4_version}" "$web_v4"
+        case $? in
+            1) echo -e "${Info} v4 版本状态: 脚本内置版本与网页版本相同" ;;
+            0) echo -e "${Info} v4 版本状态: 脚本内置版本比网页版本更新" ;;
+            2) echo -e "${Tip} v4 版本状态: 网页版本比脚本内置版本更新" ;;
+        esac
+    fi
+    
+    if [[ -n "$web_v5" ]]; then
+        echo -e "${Info} 网页获取 v5 版本: ${Yellow_font_prefix}${web_v5}${Font_color_suffix}"
+        compareVersions "${snell_v5_version}" "$web_v5"
+        case $? in
+            1) echo -e "${Info} v5 版本状态: 脚本内置版本与网页版本相同" ;;
+            0) echo -e "${Info} v5 版本状态: 脚本内置版本比网页版本更新" ;;
+            2) echo -e "${Tip} v5 版本状态: 网页版本比脚本内置版本更新" ;;
+        esac
+    fi
     
     sleep 3s
     startMenu
@@ -1161,6 +1378,54 @@ beforeStartMenu() {
     startMenu
 }
 
+# 显示版本检查进度
+showVersionCheckProgress(){
+    local check_duration=${1:-3}  # 检查预期耗时，默认3秒
+    echo -e "${Info} 正在检查 Snell 版本信息..."
+    echo -n "检查进度: "
+    
+    # 根据检查时间动态调整进度条
+    local steps=30
+    local step_time=$(echo "scale=2; $check_duration / $steps" | bc 2>/dev/null || echo "0.1")
+    
+    for i in $(seq 1 $steps); do
+        echo -n -e "${Green_font_prefix}█${Font_color_suffix}"
+        sleep $step_time
+    done
+    echo -e " ${Green_font_prefix}完成${Font_color_suffix}"
+    echo -e "${Info} 版本检查完成，正在加载主菜单..."
+    sleep 0.3
+}
+
+# 检查版本更新（带进度显示）
+checkVersionUpdateWithProgress(){
+    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+        echo -e "${Info} 正在检查 Snell 版本信息..."
+        
+        # 显示绿色进度条
+        (
+            echo -n "检查进度: "
+            for i in {1..30}; do
+                echo -n -e "${Green_font_prefix}█${Font_color_suffix}"
+                sleep 0.1
+            done
+            echo -e " ${Green_font_prefix}完成${Font_color_suffix}"
+        ) &
+        progress_pid=$!
+        
+        # 在后台进行版本检查
+        updateBuiltinVersions false >/dev/null 2>&1
+        checkVersionUpdate false >/dev/null 2>&1
+        
+        # 等待进度条完成
+        wait $progress_pid
+        
+        echo -e "${Info} 版本检查完成，正在加载主菜单..."
+        sleep 0.5
+        clear
+    fi
+}
+
 # 主菜单
 startMenu(){
     clear
@@ -1170,14 +1435,7 @@ startMenu(){
     action=$1
     
     # 检查版本更新（在显示菜单前）
-    # 首先更新内置版本号（从官方页面获取最新版本，有缓存机制）
-    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
-        # 只有安装了 Snell 才检查版本更新
-        updateBuiltinVersions
-    fi
-    
-    # 然后检查已安装版本是否需要更新
-    checkVersionUpdate
+    checkVersionUpdateWithProgress
     
     # 检查是否安装了 v4 版本，需要显示 v4 到 v5 更新选项
     show_v4_to_v5_option=false
