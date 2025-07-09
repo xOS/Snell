@@ -13,3 +13,7 @@ wget -O snell.sh --no-check-certificate https://gitee.com/ten/Snell/raw/master/S
 
 ## 注意
 * 请手动放行防火墙相应端口。
+
+## Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=xOS/Snell&type=Date)](https://www.star-history.com/#xOS/Snell&Date)
