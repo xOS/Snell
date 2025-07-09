@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.8.0"
+sh_ver="1.8.1"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.0b3"
 script_dir=$(cd "$(dirname "$0")"; pwd)
@@ -1397,9 +1397,49 @@ showVersionCheckProgress(){
     sleep 0.3
 }
 
+# 检查是否需要进行版本检查
+shouldCheckVersion(){
+    local check_interval=3600  # 1小时 = 3600秒
+    local last_check_file="/tmp/snell_last_check"
+    local current_time=$(date +%s)
+    
+    # 如果没有安装 Snell，不需要检查
+    if [[ ! -e ${snell_bin} || ! -e ${snell_conf} ]]; then
+        return 1  # 不需要检查
+    fi
+    
+    # 如果检查记录文件不存在，说明是第一次检查
+    if [[ ! -f "$last_check_file" ]]; then
+        echo "$current_time" > "$last_check_file"
+        return 0  # 需要检查
+    fi
+    
+    # 读取上次检查时间
+    local last_check_time
+    last_check_time=$(cat "$last_check_file" 2>/dev/null)
+    
+    # 如果文件内容无效，重新记录并检查
+    if [[ ! "$last_check_time" =~ ^[0-9]+$ ]]; then
+        echo "$current_time" > "$last_check_file"
+        return 0  # 需要检查
+    fi
+    
+    # 计算时间差
+    local time_diff=$((current_time - last_check_time))
+    
+    # 如果超过1小时，需要检查
+    if [[ $time_diff -ge $check_interval ]]; then
+        echo "$current_time" > "$last_check_file"
+        return 0  # 需要检查
+    fi
+    
+    return 1  # 不需要检查
+}
+
 # 检查版本更新（带进度显示）
 checkVersionUpdateWithProgress(){
-    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+    # 先检查是否需要进行版本检查
+    if shouldCheckVersion; then
         echo -e "${Info} 正在检查 Snell 版本信息..."
         
         # 显示绿色进度条
@@ -1423,6 +1463,12 @@ checkVersionUpdateWithProgress(){
         echo -e "${Info} 版本检查完成，正在加载主菜单..."
         sleep 0.5
         clear
+    else
+        # 静默进行版本检查（使用缓存）
+        if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+            updateBuiltinVersions false >/dev/null 2>&1
+            checkVersionUpdate false >/dev/null 2>&1
+        fi
     fi
 }
 
