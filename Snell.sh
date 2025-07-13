@@ -9,9 +9,11 @@ export PATH
 #	WebSite: https://about.nange.cn
 #=================================================
 
-sh_ver="1.8.1"
+sh_ver="1.8.4"
+snell_v2_version="2.0.6"
+snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
-snell_v5_version="5.0.0b3"
+snell_v5_version="5.0.0"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
@@ -143,7 +145,7 @@ checkStatus(){
     fi
 }
 
-# 版本号比较函数
+# 版本号比较函数（优先正式版）
 compareVersions(){
     local version1="$1"
     local version2="$2"
@@ -157,8 +159,34 @@ compareVersions(){
         return 1  # 相等
     fi
     
-    # 使用 sort -V 进行版本号比较
-    if printf '%s\n' "$version1" "$version2" | sort -V | head -1 | grep -q "^$version1$"; then
+    # 提取基础版本号（去除测试版后缀）
+    local base_version1=$(echo "$version1" | sed 's/[a-z].*//')
+    local base_version2=$(echo "$version2" | sed 's/[a-z].*//')
+    
+    # 检查是否为测试版
+    local is_beta1=false
+    local is_beta2=false
+    [[ "$version1" =~ [a-z] ]] && is_beta1=true
+    [[ "$version2" =~ [a-z] ]] && is_beta2=true
+    
+    # 如果基础版本号相同
+    if [[ "$base_version1" == "$base_version2" ]]; then
+        # 优先选择正式版
+        if [[ "$is_beta1" == true && "$is_beta2" == false ]]; then
+            return 2  # version1 < version2(正式版优先)
+        elif [[ "$is_beta1" == false && "$is_beta2" == true ]]; then
+            return 0  # version1 > version2(正式版优先)
+        fi
+        # 如果都是测试版或都是正式版，使用字母序比较
+        if [[ "$version1" < "$version2" ]]; then
+            return 2
+        else
+            return 0
+        fi
+    fi
+    
+    # 基础版本号不同时，使用 sort -V 进行版本号比较
+    if printf '%s\n' "$base_version1" "$base_version2" | sort -V | head -1 | grep -q "^$base_version1$"; then
         return 2  # version1 < version2
     else
         return 0  # version1 > version2
@@ -188,6 +216,12 @@ checkVersionUpdate(){
     
     if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
         current_ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
+        
+        # v2 和 v3 不支持版本检查，直接返回
+        if [[ "$current_ver" == "2" || "$current_ver" == "3" ]]; then
+            update_available=false
+            return 0
+        fi
         
         if [[ -e ${snell_version_file} ]]; then
             installed_version=$(cat ${snell_version_file} | sed 's/^v//')
@@ -274,48 +308,43 @@ getSnellDownloadUrl(){
 
 
 # 下载并安装 Snell v2（备用源）
+# 下载并安装 Snell v2（GitHub 备份源）
 downloadSnellV2() {
-    echo -e "${Info} 开始下载 Snell Server v2..."
-    wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v2.0.6/snell-server-v2.0.6-linux-${arch}.zip"
-    if [[ $? -ne 0 ]]; then
-        echo -e "${Error} 下载 Snell Server v2 失败！"
-        return 1
-    fi
-    unzip -o "snell-server-v2.0.6-linux-${arch}.zip"
-    if [[ $? -ne 0 ]]; then
-        echo -e "${Error} 解压 Snell Server v2 失败！"
-        return 1
-    fi
-    rm -rf "snell-server-v2.0.6-linux-${arch}.zip"
-    chmod +x snell-server
-    mv -f snell-server "${snell_bin}"
-    echo "v2.0.6" > "${snell_version_file}"
-    echo -e "${Info} Snell Server v2 下载安装完毕！"
-    return 0
+    downloadSnellFromGitHub "${snell_v2_version}" "v2 GitHub备份源版"
 }
 
-
-# 下载并安装 Snell v3（备用源）
+# 下载并安装 Snell v3（GitHub 备份源）
 downloadSnellV3() {
-	echo -e "${Info} 试图请求 ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} Snell Server ……"
-	wget --no-check-certificate -N "https://raw.githubusercontent.com/xOS/Others/master/snell/v3.0.1/snell-server-v3.0.1-linux-${arch}.zip"
-	if [[ ! -e "snell-server-v3.0.1-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 下载失败！"
-		return 1 && exit 1
-	else
-		unzip -o "snell-server-v3.0.1-linux-${arch}.zip"
-	fi
-	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}v3 备用源版${Font_color_suffix} 解压失败！"
-		return 1 && exit 1
-	else
-		rm -rf "snell-server-v3.0.1-linux-${arch}.zip"
-		chmod +x snell-server
-		mv -f snell-server "${snell_bin}"
-		echo "v3.0.1" > ${snell_version_file}
-		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-		return 0
-	fi
+    downloadSnellFromGitHub "${snell_v3_version}" "v3 GitHub备份源版"
+}
+
+# 通用下载并安装 Snell 函数（GitHub 备份源）
+downloadSnellFromGitHub(){
+    local version=$1
+    local version_type=$2
+    
+    echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
+    
+    local backup_url="https://raw.githubusercontent.com/xOS/Others/master/snell/v${version}/snell-server-v${version}-linux-${arch}.zip"
+    
+    wget --no-check-certificate -N "${backup_url}"
+    if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
+        echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
+        return 1
+    fi
+    
+    unzip -o "snell-server-v${version}-linux-${arch}.zip"
+    if [[ ! -e "snell-server" ]]; then
+        echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 解压失败！"
+        return 1
+    fi
+    
+    rm -rf "snell-server-v${version}-linux-${arch}.zip"
+    chmod +x snell-server
+    mv -f snell-server "${snell_bin}"
+    echo "v${version}" > "${snell_version_file}"
+    echo -e "${Info} Snell Server 主程序下载安装完毕！"
+    return 0
 }
 
 # 下载并安装 Snell v4（官方源）
@@ -325,7 +354,7 @@ downloadSnellV4(){
 
 # 下载并安装 Snell v5（官方源）
 downloadSnellV5(){
-	downloadSnell "${snell_v5_version}" "v5 Beta 官网源版"
+	downloadSnell "${snell_v5_version}" "v5 官网源版"
 }
 
 # 通用下载并安装 Snell 函数（带回退机制）
@@ -387,7 +416,7 @@ installSnell() {
 	fi
 	echo -e "选择安装版本${Yellow_font_prefix}[2-5]${Font_color_suffix} 
 ==================================
-${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_color_suffix} v3  ${Green_font_prefix} 4.${Font_color_suffix} v4  ${Green_font_prefix} 5.${Font_color_suffix} v5${Yellow_font_prefix}(beta)${Font_color_suffix}
+${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_color_suffix} v3  ${Green_font_prefix} 4.${Font_color_suffix} v4  ${Green_font_prefix} 5.${Font_color_suffix} v5
 =================================="
 	read -e -p "(默认：4.v4)：" ver
 	[[ -z "${ver}" ]] && ver="4"
@@ -547,7 +576,7 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 setVer(){
 	echo -e "配置 Snell Server 协议版本${Yellow_font_prefix}[2-5]${Font_color_suffix} 
 ==================================
-${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 ${Green_font_prefix} 5.${Font_color_suffix} v5${Yellow_font_prefix}(beta)${Font_color_suffix}
+${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 ${Green_font_prefix} 5.${Font_color_suffix} v5
 =================================="
 	read -e -p "(默认：4.v4)：" ver
 	[[ -z "${ver}" ]] && ver="4"
@@ -767,7 +796,6 @@ installSnellV4(){
 installSnellV5(){
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装，请先卸载旧版再安装新版!" && exit 1
-	echo -e "${Tip} 您选择的是 v5 ${Yellow_font_prefix}Beta${Font_color_suffix} 版本，此版本为测试版本，可能存在不稳定因素！"
 	echo -e "${Info} 开始设置 配置..."
 	setPort
 	setPSK
@@ -849,8 +877,7 @@ updateV4toV5(){
 		return 1
 	fi
 	
-	echo -e "${Tip} 即将将 Snell Server 从 v4 更新到 v5 ${Yellow_font_prefix}Beta${Font_color_suffix} 版本"
-	echo -e "${Tip} v5 为测试版本，可能存在不稳定因素！"
+	echo -e "${Info} 即将将 Snell Server 从 v4 更新到 v5 版本"
 	echo -e "确定要更新吗？(y/N)"
 	read -e -p "(默认: n):" confirm
 	[[ -z "${confirm}" ]] && confirm="n"
@@ -909,7 +936,7 @@ updateV4toV5(){
 	
 	# 下载并安装 v5，启用回退机制
 	echo -e "${Info} 开始下载 v5 版本..."
-	downloadSnell "${target_v5_version}" "v5 Beta 版本" true "${current_v4_version}"
+	downloadSnell "${target_v5_version}" "v5 版本" true "${current_v4_version}"
 	
 	if [[ $? -eq 0 ]]; then
 		# 更新配置文件中的版本号
@@ -927,7 +954,7 @@ updateV4toV5(){
 		if [[ "$status" == "running" ]]; then
 			actual_version=$(cat ${snell_version_file} | sed 's/^v//')
 			echo -e "${Info} v4 到 v5 更新成功！"
-			echo -e "${Info} 当前版本：v${actual_version} ${Yellow_font_prefix}Beta${Font_color_suffix}"
+			echo -e "${Info} 当前版本：v${actual_version}"
 			
 			# 如果实际版本是 v4（说明回退了），更新配置文件版本号
 			if [[ "$actual_version" =~ ^4\. ]]; then
@@ -1034,7 +1061,7 @@ updateSnellServer(){
             downloadSnell "${latest_available_version}" "v4 最新版" true "${current_installed_version}"
             ;;
         "5")
-            downloadSnell "${latest_available_version}" "v5 Beta 最新版" true "${current_installed_version}"
+            downloadSnell "${latest_available_version}" "v5 最新版" true "${current_installed_version}"
             ;;
         *)
             echo -e "${Error} 不支持的版本: v${ver}"
@@ -1118,6 +1145,10 @@ updateBuiltinVersions(){
     local cache_time=3600
     local current_time=$(date +%s)
     
+    # v2 和 v3 始终使用固定版本，无需检查
+    web_v2_newer=false
+    web_v3_newer=false
+    
     # 检查缓存是否存在且有效
     if [[ -f "$cache_file" ]]; then
         local cache_timestamp=$(head -1 "$cache_file" 2>/dev/null)
@@ -1179,7 +1210,7 @@ updateBuiltinVersions(){
         latest_v5_web="${snell_v5_version}"
     fi
     
-    # 更新缓存
+    # 更新缓存（只缓存 v4 和 v5）
     echo "$current_time" > "$cache_file"
     echo "$latest_v4_web" >> "$cache_file"
     echo "$latest_v5_web" >> "$cache_file"
@@ -1492,8 +1523,10 @@ startMenu(){
         if [[ "$current_ver" == "4" ]]; then
             show_v4_to_v5_option=true
         fi
-        # 只要已安装就显示更新选项
-        show_update_option=true
+        # 只有 v4 和 v5 显示更新选项，v2 和 v3 不显示
+        if [[ "$current_ver" == "4" || "$current_ver" == "5" ]]; then
+            show_update_option=true
+        fi
     fi
     
     echo && echo -e "  
@@ -1513,7 +1546,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
         else
             echo -e " ${Green_font_prefix} 3.${Font_color_suffix} 更新 Snell Server"
         fi
-        echo -e " ${Green_font_prefix} 4.${Font_color_suffix} v4 更新到 v5${Yellow_font_prefix}(Beta)${Font_color_suffix}
+        echo -e " ${Green_font_prefix} 4.${Font_color_suffix} v4 更新到 v5
 ——————————————————————————————
  ${Green_font_prefix} 5.${Font_color_suffix} 启动 Snell Server
  ${Green_font_prefix} 6.${Font_color_suffix} 停止 Snell Server
