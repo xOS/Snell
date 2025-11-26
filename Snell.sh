@@ -6,21 +6,21 @@ export PATH
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell Server 管理脚本
 #	Author: 翠花
-#	WebSite: https://about.nange.cn
+#	WebSite: https://about.aapls.com
 #=================================================
 
-sh_ver="1.8.4"
+sh_ver="1.8.5"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
-snell_v5_version="5.0.0"
+snell_v5_version="5.0.1"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
 snell_bin="/usr/local/bin/snell-server"
 snell_conf="/etc/snell/config.conf"
 snell_version_file="/etc/snell/ver.txt"
-sysctl_conf="/etc/sysctl.d/local.conf"
+sysctl_conf="/etc/sysctl.d/99-snell.conf"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m" && Yellow_font_prefix="\033[0;33m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
@@ -104,13 +104,19 @@ enableTCPFastOpen() {
 	kernel=$(uname -r | awk -F . '{print $1}')
 	if [ "$kernel" -ge 3 ]; then
 		echo 3 >/proc/sys/net/ipv4/tcp_fastopen
-		[[ ! -e $sysctl_conf ]] && echo "fs.file-max = 51200
+		# 创建或覆盖 Snell 专用的 sysctl 配置文件
+		cat > "$sysctl_conf" << EOF
+# Snell Server 网络优化配置
+# 由 Snell 管理脚本自动生成
+
+fs.file-max = 51200
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.core.rmem_default = 65536
 net.core.wmem_default = 65536
 net.core.netdev_max_backlog = 4096
 net.core.somaxconn = 4096
+
 net.ipv4.tcp_syncookies = 1
 net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_tw_recycle = 0
@@ -123,11 +129,17 @@ net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_rmem = 4096 87380 67108864
 net.ipv4.tcp_wmem = 4096 65536 67108864
 net.ipv4.tcp_mtu_probing = 1
-net.ipv4.tcp_ecn=1
-net.core.default_qdisc=fq
-net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.d/local.conf && sysctl --system >/dev/null 2>&1
+net.ipv4.tcp_ecn = 1
+
+# BBR 拥塞控制
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+EOF
+		# 应用配置
+		sysctl --system >/dev/null 2>&1
+		echo -e "${Info} TCP Fast Open 和网络优化配置已启用！"
 	else
-		echo -e "$Error 系统内核版本过低，无法支持 TCP Fast Open！"
+		echo -e "${Error} 系统内核版本过低，无法支持 TCP Fast Open！"
 	fi
 }
 
@@ -438,8 +450,7 @@ setupService(){
 	echo '
 [Unit]
 Description=Snell Service
-After=network-online.target
-Wants=network-online.target systemd-networkd-wait-online.service
+After=network.target
 [Service]
 LimitNOFILE=32767 
 Type=simple
@@ -450,7 +461,8 @@ ExecStartPre=/bin/sh -c 'ulimit -n 51200'
 ExecStart=/usr/local/bin/snell-server -c /etc/snell/config.conf
 [Install]
 WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
-	systemctl enable --now snell-server
+	systemctl daemon-reload
+	systemctl enable snell-server
 	echo -e "${Info} Snell Server 服务配置完成！"
 }
 
@@ -825,12 +837,30 @@ startSnell(){
     if [[ "$status" == "running" ]]; then
         echo -e "${Info} Snell Server 已在运行！"
     else
+        echo -e "${Info} 正在启动 Snell Server..."
         systemctl start snell-server
+        
+        # 等待启动完成，最多等待5秒
+        local timeout=5
+        local elapsed=0
+        while [[ $elapsed -lt $timeout ]]; do
+            sleep 1
+            checkStatus
+            if [[ "$status" == "running" ]]; then
+                echo -e "${Info} Snell Server 启动成功！"
+                return 0
+            fi
+            ((elapsed++))
+        done
+        
+        # 如果5秒后仍未启动，检查状态并报错
         checkStatus
         if [[ "$status" == "running" ]]; then
             echo -e "${Info} Snell Server 启动成功！"
         else
             echo -e "${Error} Snell Server 启动失败！"
+            echo -e "${Error} 请使用 'systemctl status snell-server' 查看详细错误信息"
+            journalctl -u snell-server -n 20 --no-pager
             exit 1
         fi
     fi
@@ -1263,11 +1293,21 @@ uninstallSnell(){
 	read -e -p "(默认: n):" unyn
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
+		echo -e "${Info} 停止并禁用服务..."
 		systemctl stop snell-server
-        systemctl disable snell-server
+		systemctl disable snell-server
+		
 		echo -e "${Info} 移除主程序..."
 		rm -rf "${snell_bin}"
-		echo -e "${Info} 配置文件暂保留..."
+		
+		echo -e "${Info} 移除 systemd 服务文件..."
+		rm -f /etc/systemd/system/snell-server.service
+		systemctl daemon-reload
+		
+		echo -e "${Info} 移除网络优化配置..."
+		rm -f "${sysctl_conf}"
+		
+		echo -e "${Info} 配置文件保留在 ${snell_conf}，如需完全删除请手动执行: rm -rf /etc/snell"
 		echo && echo "Snell Server 卸载完成！" && echo
 	else
 		echo && echo "卸载已取消..." && echo
