@@ -6,7 +6,7 @@ export PATH
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Snell Server 管理脚本
 #	Author: 翠花
-#	WebSite: https://about.aapls.com
+#	WebSite: https://aapls.com
 #=================================================
 
 sh_ver="1.8.6"
