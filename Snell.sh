@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://about.aapls.com
 #=================================================
 
-sh_ver="1.8.5"
+sh_ver="1.8.6"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -457,7 +457,6 @@ Type=simple
 User=root
 Restart=on-failure
 RestartSec=5s
-ExecStartPre=/bin/sh -c 'ulimit -n 51200'
 ExecStart=/usr/local/bin/snell-server -c /etc/snell/config.conf
 [Install]
 WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
