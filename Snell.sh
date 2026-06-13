@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="1.9.0"
+sh_ver="1.9.1"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -238,6 +238,19 @@ checkVersionUpdate(){
 
         if [[ -e ${snell_version_file} ]]; then
             installed_version=$(cat ${snell_version_file} | sed 's/^v//')
+
+            # 尝试从二进制程序获取真实版本 (容错处理)
+            if command -v timeout >/dev/null 2>&1 && [[ -x ${snell_bin} ]]; then
+                bin_version=$(timeout 1 ${snell_bin} --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9]*' | head -1)
+                [[ -z "$bin_version" ]] && bin_version=$(timeout 1 ${snell_bin} -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9]*' | head -1)
+                [[ -z "$bin_version" ]] && bin_version=$(timeout 1 ${snell_bin} --help 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9]*' | head -1)
+
+                if [[ -n "$bin_version" && "$bin_version" != "$installed_version" ]]; then
+                    installed_version="$bin_version"
+                    echo "v${installed_version}" > "${snell_version_file}" # 修复不同步的问题
+                fi
+            fi
+
             current_installed_version="$installed_version"
 
             # 根据当前版本确定对应的脚本版本和网页版本
@@ -487,8 +500,8 @@ WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
 
 # 针对 v6 检查 PSK 长度
 checkPskForV6(){
-    if [[ ${#psk} -lt 10 ]]; then
-        echo -e "${Error} 检测到当前 PSK (${psk}) 长度不足 10 位，Snell v6 拒绝短密码启动！"
+    if [[ ${#psk} -lt 16 ]]; then
+        echo -e "${Error} 检测到当前 PSK (${psk}) 长度不足 16 位，Snell v6 拒绝短密码启动！"
         echo -e "请选择处理方式："
         echo -e " 1. 自动生成安全的随机长密码（推荐）"
         echo -e " 2. 手动输入新的长密码"
@@ -497,12 +510,12 @@ checkPskForV6(){
 
         if [[ "${psk_choice}" == "2" ]]; then
             while true; do
-                read -e -p "请输入新的 PSK (至少10位): " new_psk
-                if [[ ${#new_psk} -ge 10 ]]; then
+                read -e -p "请输入新的 PSK (至少16位): " new_psk
+                if [[ ${#new_psk} -ge 16 ]]; then
                     psk=$new_psk
                     break
                 else
-                    echo -e "${Error} 密码长度不能小于 10 位！"
+                    echo -e "${Error} 密码长度不能小于 16 位！"
                 fi
             done
         else
@@ -515,7 +528,7 @@ checkPskForV6(){
 # 写入配置文件
 writeConfig(){
     local config_content="[snell-server]
-listen = ::0:${port}
+listen = ${listen_val}
 $(if [[ ${ver} != "6" ]]; then echo "ipv6 = ${ipv6}"; else echo "# ipv6 = ${ipv6}"; fi)
 psk = ${psk}
 $(if [[ ${ver} != "6" ]]; then echo "obfs = ${obfs}"; else echo "# obfs = ${obfs}"; fi)"
@@ -541,7 +554,26 @@ dns = ${dns}"
         fi
     fi
 
+    if [[ -n "${egress_interface}" ]]; then
+        config_content+=$'\n'"egress-interface = ${egress_interface}"
+    fi
+
     config_content+=$'\n'"version = ${ver}"
+
+    # 保留未知的自定义配置项
+    if [[ -f "${snell_conf}" ]]; then
+        local custom_configs=$(awk -F '=' '{
+            if ($1 !~ /^[[:space:]]*(listen|ipv6|psk|obfs|obfs-host|tfo|dns|dns-ip-preference|version|egress-interface|\[snell-server\]|#)[[:space:]]*/) {
+                if (NF > 0 && $0 !~ /^[[:space:]]*$/) {
+                    print $0
+                }
+            }
+        }' "${snell_conf}")
+        
+        if [[ -n "${custom_configs}" ]]; then
+            config_content+=$'\n\n# Custom Configs\n'"${custom_configs}"
+        fi
+    fi
 
     echo "${config_content}" > "${snell_conf}"
 }
@@ -552,8 +584,9 @@ dns = ${dns}"
 # 读取配置文件
 readConfig(){
 	[[ ! -e ${snell_conf} ]] && echo -e "${Error} Snell Server 配置文件不存在！" && exit 1
+	listen_val=$(grep -E '^listen\s*=' ${snell_conf} | sed -E 's/^listen\s*=\s*//' | xargs)
+	port=$(echo "$listen_val" | awk -F',' '{print $1}' | awk -F':' '{print $NF}' | xargs)
 	ipv6=$(cat ${snell_conf}|grep 'ipv6 = '|awk -F 'ipv6 = ' '{print $NF}')
-	port=$(grep -E '^listen\s*=' ${snell_conf} | awk -F ':' '{print $NF}' | xargs)
 	psk=$(cat ${snell_conf}|grep 'psk = '|awk -F 'psk = ' '{print $NF}')
 	obfs=$(cat ${snell_conf}|grep 'obfs = '|awk -F 'obfs = ' '{print $NF}')
 	host=$(cat ${snell_conf}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
@@ -561,6 +594,7 @@ readConfig(){
 	dns=$(cat ${snell_conf}|grep 'dns = '|awk -F 'dns = ' '{print $NF}')
 	dns_ip_pref=$(cat ${snell_conf}|grep 'dns-ip-preference = '|awk -F 'dns-ip-preference = ' '{print $NF}')
 	ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
+	egress_interface=$(cat ${snell_conf}|grep 'egress-interface = '|awk -F 'egress-interface = ' '{print $NF}')
 }
 
 # 设置端口
@@ -573,6 +607,11 @@ setPort(){
         read -e -p "${p_prompt}" input_port
         [[ -z "${input_port}" ]] && input_port=${port:-"2345"}
         port=$input_port
+        if [[ "${ver}" == "6" || "$current_installed_ver" == "6" ]]; then
+            listen_val="0.0.0.0:${port},[::]:${port}"
+        else
+            listen_val="::0:${port}"
+        fi
         if [[ $port =~ ^[0-9]+$ ]] && [[ $port -ge 1 && $port -le 65535 ]]; then
             if ss -tuln | grep -q ":$port "; then
                 echo -e "${Error} 端口 $port 已被占用，请选择其他端口。"
@@ -621,22 +660,22 @@ setPSK(){
 	[[ -n "$psk" ]] && p_prompt="(当前: ${psk} | 默认: 随机生成):"
 
 	if [[ "$ver" == "6" || "$current_installed_ver" == "6" ]]; then
-	    echo -e "${Tip} 当前目标协议为 v6，密码长度不能少于 10 位"
+	    echo -e "${Tip} 当前目标协议为 v6，密码长度不能少于 16 位"
 	    while true; do
 	        read -e -p "${p_prompt}" input_psk
 	        if [[ -z "${input_psk}" ]]; then
-	            if [[ -n "$psk" && ${#psk} -ge 10 ]]; then
+	            if [[ -n "$psk" && ${#psk} -ge 16 ]]; then
 	                break
 	            else
 	                psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
 	                break
 	            fi
 	        else
-	            if [[ ${#input_psk} -ge 10 ]]; then
+	            if [[ ${#input_psk} -ge 16 ]]; then
 	                psk=$input_psk
 	                break
 	            else
-	                echo -e "${Error} Snell v6 密码长度不能少于 10 位，请重新输入！"
+	                echo -e "${Error} Snell v6 密码长度不能少于 16 位，请重新输入！"
 	            fi
 	        fi
 	    done
@@ -1363,9 +1402,15 @@ updateV4toV5(){
 	downloadSnell "${target_v5_version}" "v5 版本" true "${current_v4_version}"
 
 	if [[ $? -eq 0 ]]; then
-		# 更新配置文件中的版本号
-		echo -e "${Info} 更新配置文件版本号..."
-		sed -i "s/version = 4/version = 5/g" "${snell_conf}"
+        actual_version=$(cat ${snell_version_file} | sed 's/^v//')
+
+        if [[ "$actual_version" =~ ^5\. ]]; then
+            # 更新配置文件中的版本号
+            echo -e "${Info} 更新配置文件版本号..."
+            sed -i "s/version = 4/version = 5/g" "${snell_conf}"
+        else
+            echo -e "${Tip} 注意：由于 v5 下载链接问题，已回退重新安装 v${actual_version} 版本"
+        fi
 
 		# 重新加载 systemd 并启动服务
 		echo -e "${Info} 重启 Snell Server 服务..."
@@ -1376,15 +1421,10 @@ updateV4toV5(){
 		sleep 2
 		checkStatus
 		if [[ "$status" == "running" ]]; then
-			actual_version=$(cat ${snell_version_file} | sed 's/^v//')
-			echo -e "${Info} v4 到 v5 更新成功！"
-			echo -e "${Info} 当前版本：v${actual_version}"
-
-			# 如果实际版本是 v4（说明回退了），更新配置文件版本号
-			if [[ "$actual_version" =~ ^4\. ]]; then
-				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
-				echo -e "${Tip} 注意：由于下载链接问题，已回退到 v4 版本"
-			fi
+            if [[ "$actual_version" =~ ^5\. ]]; then
+			    echo -e "${Info} v4 到 v5 更新成功！"
+			    echo -e "${Info} 当前版本：v${actual_version}"
+            fi
 		else
 			echo -e "${Error} 服务启动失败，正在回滚..."
 			# 回滚到 v4
@@ -1471,11 +1511,17 @@ updateV5toV6(){
 	downloadSnell "${target_v6_version}" "v6 版本" true "${current_v5_version}"
 
 	if [[ $? -eq 0 ]]; then
-		echo -e "${Info} 更新配置文件版本号..."
-		ver=6
-		setDNSIPPref
-		checkPskForV6
-		writeConfig
+        actual_version=$(cat ${snell_version_file} | sed 's/^v//')
+
+        if [[ "$actual_version" =~ ^6\. ]]; then
+            echo -e "${Info} 更新配置文件版本号..."
+            ver=6
+            setDNSIPPref
+            checkPskForV6
+            writeConfig
+        else
+            echo -e "${Tip} 注意：由于 v6 下载链接问题，已回退重新安装 v${actual_version} 版本"
+        fi
 
 		systemctl daemon-reload
 		systemctl start snell-server
@@ -1488,15 +1534,10 @@ updateV5toV6(){
 			fi
 		done
 		if [[ "$status" == "running" ]]; then
-			actual_version=$(cat ${snell_version_file} | sed 's/^v//')
-			echo -e "${Info} v5 到 v6 更新成功！"
-			echo -e "${Info} 当前版本：v${actual_version}"
-
-			if [[ "$actual_version" =~ ^5\. ]]; then
-			    ver=5
-				writeConfig
-				echo -e "${Tip} 注意：由于下载链接问题，已回退到 v5 版本"
-			fi
+            if [[ "$actual_version" =~ ^6\. ]]; then
+			    echo -e "${Info} v5 到 v6 更新成功！"
+			    echo -e "${Info} 当前版本：v${actual_version}"
+            fi
 		else
 			echo -e "${Error} 升级后服务启动失败，以下为错误日志："
 			journalctl -u snell-server -n 20 --no-pager
@@ -1860,7 +1901,8 @@ uninstallSnell(){
 		echo -e "${Info} 移除网络优化配置..."
 		rm -f "${sysctl_conf}"
 
-		echo -e "${Info} 配置文件保留在 ${snell_conf}，如需完全删除请手动执行: rm -rf /etc/snell"
+		echo -e "${Info} 移除配置文件及版本记录..."
+		rm -rf /etc/snell
 		echo && echo "Snell Server 卸载完成！" && echo
 	else
 		echo && echo "卸载已取消..." && echo
@@ -1899,7 +1941,7 @@ viewConfig(){
     getIpv6
     clear && echo
     echo -e "Snell Server 配置信息："
-    echo -e "—————————————————————————"
+    echo -e "——————————————————————————————————————————————————"
     if [[ "${ipv4}" != "IPv4_Error" ]]; then
         echo -e " IPv4 地址\t: ${Green_font_prefix}${ipv4}${Font_color_suffix}"
     fi
@@ -1920,12 +1962,20 @@ viewConfig(){
     echo -e " TFO\t\t: ${Green_font_prefix}${tfo}${Font_color_suffix}"
     echo -e " DNS\t\t: ${Green_font_prefix}${dns}${Font_color_suffix}"
 
+    if [[ -n "${egress_interface}" ]]; then
+        echo -e " 出口网卡\t: ${Green_font_prefix}${egress_interface}${Font_color_suffix}"
+    fi
+
     if [[ "$ver" == "6" && -n "$dns_ip_pref" ]]; then
         echo -e " DNS IP 偏好\t: ${Green_font_prefix}${dns_ip_pref}${Font_color_suffix}"
     fi
 
     echo -e " 版本\t\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
-    echo -e "—————————————————————————"
+    echo -e "——————————————————————————————————————————————————"
+    if [[ "$ver" == "6" ]]; then
+        echo -e "${Tip} 如有监听多 IP 多端口需求，请手动编辑配置文件。"
+        echo -e "——————————————————————————————————————————————————"
+    fi
     echo -e "${Info} Surge 配置："
     if [[ "${ipv4}" != "IPv4_Error" ]]; then
         if [[ "${obfs}" == "off" || "${ver}" == "6" ]]; then
@@ -1942,7 +1992,7 @@ viewConfig(){
     else
         echo -e "${Error} 无法获取 IP 地址！"
     fi
-    echo -e "—————————————————————————"
+    echo -e "——————————————————————————————————————————————————"
     beforeStartMenu
 }
 
@@ -2218,7 +2268,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
     if [[ -e ${snell_bin} ]]; then
         checkStatus
         if [[ "$status" == "running" ]]; then
-            echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}并${Green_font_prefix}已启动${Font_color_suffix}"
+            echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}且${Green_font_prefix}已启动${Font_color_suffix}"
         else
             echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}但${Red_font_prefix}未启动${Font_color_suffix}"
         fi
