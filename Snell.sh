@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="1.9.1"
+sh_ver="1.9.2"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -303,7 +303,7 @@ checkVersionUpdate(){
                             best_version="$web_version"
                             version_source="官方网页"
                         else
-                            [[ "$show_info" == true ]] && echo -e "${Tip} 网页版本 v${web_version} 的下载链接无效，使用脚本内置版本"
+                            [[ "$show_info" == true ]] && echo -e "${Tip} 网页版本 Snell v${web_version} 的下载链接无效，使用脚本内置版本"
                         fi
                         ;;
                     1|0)  # best_version >= web_version
@@ -319,7 +319,7 @@ checkVersionUpdate(){
             if [[ $? -eq 2 ]]; then
                 update_available=true
                 if [[ "$show_info" == true ]]; then
-                    echo -e "${Info} 发现更新：当前版本 v${installed_version} -> 最新版本 v${best_version}"
+                    echo -e "${Info} 发现更新：当前版本 Snell v${installed_version} -> 最新版本 Snell v${best_version}"
                     echo -e "${Info} 更新版本来源：${version_source}"
                 fi
             fi
@@ -339,12 +339,12 @@ getSnellDownloadUrl(){
 
 # 下载并安装 Snell v2
 downloadSnellV2() {
-    downloadSnellFromGitHub "${snell_v2_version}" "v2 GitHub 备份源版" || downloadSnellFromGitee "${snell_v2_version}" "v2 Gitee 备份源版"
+    downloadSnellFromGitHub "${snell_v2_version}" "Snell v2 GitHub 备份源版" || downloadSnellFromGitee "${snell_v2_version}" "Snell v2 Gitee 备份源版"
 }
 
 # 下载并安装 Snell v3
 downloadSnellV3() {
-    downloadSnellFromGitHub "${snell_v3_version}" "v3 GitHub 备份源版" || downloadSnellFromGitee "${snell_v3_version}" "v3 Gitee 备份源版"
+    downloadSnellFromGitHub "${snell_v3_version}" "Snell v3 GitHub 备份源版" || downloadSnellFromGitee "${snell_v3_version}" "Snell v3 Gitee 备份源版"
 }
 
 # 通用下载并安装 Snell 函数（第三方备份源）
@@ -391,12 +391,12 @@ downloadSnellFromGitee(){
 
 # 下载并安装 Snell v4
 downloadSnellV4(){
-	downloadSnell "${snell_v4_version}" "v4 官网源版" || downloadSnellFromGitHub "${snell_v4_version}" "v4 GitHub 备份源版" || downloadSnellFromGitee "${snell_v4_version}" "v4 Gitee 备份源版"
+	downloadSnell "${snell_v4_version}" "Snell v4 官网源版" || downloadSnellFromGitHub "${snell_v4_version}" "Snell v4 GitHub 备份源版" || downloadSnellFromGitee "${snell_v4_version}" "Snell v4 Gitee 备份源版"
 }
 
 # 下载并安装 Snell v5
 downloadSnellV5(){
-	downloadSnell "${snell_v5_version}" "v5 官网源版" || downloadSnellFromGitHub "${snell_v5_version}" "v5 GitHub 备份源版" || downloadSnellFromGitee "${snell_v5_version}" "v5 Gitee 备份源版"
+	downloadSnell "${snell_v5_version}" "Snell v5 官网源版" || downloadSnellFromGitHub "${snell_v5_version}" "Snell v5 GitHub 备份源版" || downloadSnellFromGitee "${snell_v5_version}" "Snell v5 Gitee 备份源版"
 }
 
 # 通用下载并安装 Snell 函数（带回退机制）
@@ -498,29 +498,29 @@ WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
 }
 
 
-# 针对 v6 检查 PSK 长度
+# 针对 Snell v6 检查密钥长度
 checkPskForV6(){
     if [[ ${#psk} -lt 16 ]]; then
-        echo -e "${Error} 检测到当前 PSK (${psk}) 长度不足 16 位，Snell v6 拒绝短密码启动！"
+        echo -e "${Error} 检测到当前密钥 (${psk}) 长度不足 16 位，Snell v6 要求升级密钥！"
         echo -e "请选择处理方式："
-        echo -e " 1. 自动生成安全的随机长密码（推荐）"
-        echo -e " 2. 手动输入新的长密码"
+        echo -e " 1. 自动生成安全的随机长密钥（推荐）"
+        echo -e " 2. 手动输入新的长密钥"
         read -e -p "(默认: 1):" psk_choice
         [[ -z "${psk_choice}" ]] && psk_choice="1"
 
         if [[ "${psk_choice}" == "2" ]]; then
             while true; do
-                read -e -p "请输入新的 PSK (至少16位): " new_psk
+                read -e -p "请输入新的密钥(至少16位): " new_psk
                 if [[ ${#new_psk} -ge 16 ]]; then
                     psk=$new_psk
                     break
                 else
-                    echo -e "${Error} 密码长度不能小于 16 位！"
+                    echo -e "${Error} 密钥长度不能小于 16 位！"
                 fi
             done
         else
             psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
-            echo -e "${Info} 已自动生成新 PSK: ${Green_font_prefix}${psk}${Font_color_suffix}"
+            echo -e "${Info} 已自动生成新密钥: ${Green_font_prefix}${psk}${Font_color_suffix}"
         fi
     fi
 }
@@ -569,7 +569,7 @@ dns = ${dns}"
                 }
             }
         }' "${snell_conf}")
-        
+
         if [[ -n "${custom_configs}" ]]; then
             config_content+=$'\n\n# Custom Configs\n'"${custom_configs}"
         fi
@@ -592,8 +592,9 @@ readConfig(){
 	host=$(cat ${snell_conf}|grep 'obfs-host = '|awk -F 'obfs-host = ' '{print $NF}')
 	tfo=$(cat ${snell_conf}|grep 'tfo = '|awk -F 'tfo = ' '{print $NF}')
 	dns=$(cat ${snell_conf}|grep 'dns = '|awk -F 'dns = ' '{print $NF}')
-	dns_ip_pref=$(cat ${snell_conf}|grep 'dns-ip-preference = '|awk -F 'dns-ip-preference = ' '{print $NF}')
 	ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
+	dns_ip_pref=$(cat ${snell_conf}|grep 'dns-ip-preference = '|awk -F 'dns-ip-preference = ' '{print $NF}')
+	[[ -z "$dns_ip_pref" && "$ver" == "6" ]] && dns_ip_pref="default"
 	egress_interface=$(cat ${snell_conf}|grep 'egress-interface = '|awk -F 'egress-interface = ' '{print $NF}')
 }
 
@@ -602,10 +603,11 @@ setPort(){
     while true; do
         echo -e "${Tip} 本步骤不涉及系统防火墙端口操作，请手动放行相应端口！"
         echo -e "请输入 Snell Server 端口${Yellow_font_prefix}[1-65535]${Font_color_suffix}"
-        local p_prompt="(默认: 2345):"
-        [[ -n "$port" ]] && p_prompt="(当前: ${port} | 默认: 2345):"
-        read -e -p "${p_prompt}" input_port
-        [[ -z "${input_port}" ]] && input_port=${port:-"2345"}
+        local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}: 2345):"
+        [[ -n "$port" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${port} | ${Green_font_prefix}默认${Font_color_suffix}: 2345):"
+        echo -e -n "${p_prompt}"
+        read -e input_port
+        [[ -z "${input_port}" ]] && input_port="2345"
         port=$input_port
         if [[ "${ver}" == "6" || "$current_installed_ver" == "6" ]]; then
             listen_val="0.0.0.0:${port},[::]:${port}"
@@ -638,10 +640,11 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 =================================="
 	local current_opt="2"
 	[[ "$ipv6" == "true" ]] && current_opt="1"
-	local p_prompt="(默认：2.关闭)："
-	[[ -n "$ipv6" ]] && p_prompt="(当前: ${current_opt}.${ipv6} | 默认：2.关闭)："
-	read -e -p "${p_prompt}" input_ipv6
-	[[ -z "${input_ipv6}" ]] && input_ipv6=${current_opt:-"2"}
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：2.关闭)："
+	[[ -n "$ipv6" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${ipv6} | ${Green_font_prefix}默认${Font_color_suffix}：2.关闭)："
+	echo -e -n "${p_prompt}"
+	read -e input_ipv6
+	[[ -z "${input_ipv6}" ]] && input_ipv6="2"
 	if [[ ${input_ipv6} == "1" ]]; then
 		ipv6=true
 	else
@@ -656,35 +659,31 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 setPSK(){
 	echo "请输入 Snell Server 密钥 [0-9][a-z][A-Z] "
 
-	local p_prompt="(默认: 随机生成):"
-	[[ -n "$psk" ]] && p_prompt="(当前: ${psk} | 默认: 随机生成):"
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}: 随机生成):"
+	[[ -n "$psk" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${psk} | ${Green_font_prefix}默认${Font_color_suffix}: 随机生成):"
 
 	if [[ "$ver" == "6" || "$current_installed_ver" == "6" ]]; then
-	    echo -e "${Tip} 当前目标协议为 v6，密码长度不能少于 16 位"
+	    echo -e "${Tip} 当前目标协议为 Snell v6，密钥长度不能少于 16 位"
 	    while true; do
-	        read -e -p "${p_prompt}" input_psk
+	        echo -e -n "${p_prompt}"
+	        read -e input_psk
 	        if [[ -z "${input_psk}" ]]; then
-	            if [[ -n "$psk" && ${#psk} -ge 16 ]]; then
-	                break
-	            else
-	                psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
-	                break
-	            fi
+	            psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
+	            break
 	        else
 	            if [[ ${#input_psk} -ge 16 ]]; then
 	                psk=$input_psk
 	                break
 	            else
-	                echo -e "${Error} Snell v6 密码长度不能少于 16 位，请重新输入！"
+	                echo -e "${Error} Snell v6 密钥长度不能少于 16 位，请重新输入！"
 	            fi
 	        fi
 	    done
 	else
-	    read -e -p "${p_prompt}" input_psk
+	    echo -e -n "${p_prompt}"
+	    read -e input_psk
 	    if [[ -z "${input_psk}" ]]; then
-	        if [[ -z "$psk" ]]; then
-	            psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
-	        fi
+	        psk=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
 	    else
 	        psk=$input_psk
 	    fi
@@ -703,10 +702,11 @@ ${Green_font_prefix} 1.${Font_color_suffix} TLS  ${Green_font_prefix} 2.${Font_c
 =================================="
     local current_opt="3"
     if [[ "$obfs" == "tls" ]]; then current_opt="1"; elif [[ "$obfs" == "http" ]]; then current_opt="2"; fi
-    local p_prompt="(默认：3.关闭)："
-    [[ -n "$obfs" ]] && p_prompt="(当前: ${current_opt}.${obfs} | 默认：3.关闭)："
-    read -e -p "${p_prompt}" input_obfs
-    [[ -z "${input_obfs}" ]] && input_obfs=${current_opt:-"3"}
+    local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：3.关闭)："
+    [[ -n "$obfs" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${obfs} | ${Green_font_prefix}默认${Font_color_suffix}：3.关闭)："
+    echo -e -n "${p_prompt}"
+    read -e input_obfs
+    [[ -z "${input_obfs}" ]] && input_obfs="3"
     obfs=$input_obfs
     if [[ ${obfs} == "1" ]]; then
         obfs="tls"
@@ -736,8 +736,14 @@ setVer(){
 ==================================
 ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_color_suffix} v3 ${Green_font_prefix} 4.${Font_color_suffix} v4 ${Green_font_prefix} 5.${Font_color_suffix} v5 ${Green_font_prefix} 6.${Font_color_suffix} v6
 =================================="
-	read -e -p "(默认：4.v4)：" ver
-	[[ -z "${ver}" ]] && ver="4"
+	local current_ver_display=""
+	[[ -n "$ver" ]] && current_ver_display="${ver}.v${ver}"
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：4.v4)："
+	[[ -n "$ver" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_ver_display} | ${Green_font_prefix}默认${Font_color_suffix}：4.v4)："
+	echo -e -n "${p_prompt}"
+	read -e input_ver
+	[[ -z "${input_ver}" ]] && input_ver="4"
+	ver=$input_ver
 	if [[ ${ver} == "2" ]]; then
 		ver=2
 	elif [[ ${ver} == "3" ]]; then
@@ -758,11 +764,12 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 
 # 设置 OBFS 域名
 setHost(){
-	echo "请输入 Snell Server 域名，v4 版本及以上如无特别需求可忽略。"
-	local p_prompt="(默认: icloud.com):"
-	[[ -n "$host" ]] && p_prompt="(当前: ${host} | 默认: icloud.com):"
-	read -e -p "${p_prompt}" input_host
-	[[ -z "${input_host}" ]] && input_host=${host:-"icloud.com"}
+	echo "请输入 Snell Server 域名，Snell v4 版本及以上如无特别需求可忽略。"
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}: icloud.com):"
+	[[ -n "$host" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${host} | ${Green_font_prefix}默认${Font_color_suffix}: icloud.com):"
+	echo -e -n "${p_prompt}"
+	read -e input_host
+	[[ -z "${input_host}" ]] && input_host="icloud.com"
 	host=$input_host
 	echo && echo "=============================="
 	echo -e "域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
@@ -777,10 +784,11 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 =================================="
 	local current_opt="1"
 	if [[ "$tfo" == "false" ]]; then current_opt="2"; fi
-	local p_prompt="(默认：1.开启)："
-	[[ -n "$tfo" ]] && p_prompt="(当前: ${current_opt}.${tfo} | 默认：1.开启)："
-	read -e -p "${p_prompt}" input_tfo
-	[[ -z "${input_tfo}" ]] && input_tfo=${current_opt:-"1"}
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：1.开启)："
+	[[ -n "$tfo" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${tfo} | ${Green_font_prefix}默认${Font_color_suffix}：1.开启)："
+	echo -e -n "${p_prompt}"
+	read -e input_tfo
+	[[ -z "${input_tfo}" ]] && input_tfo="1"
 	tfo=$input_tfo
 	if [[ ${tfo} == "1" ]]; then
 		tfo=true
@@ -795,11 +803,12 @@ ${Green_font_prefix} 1.${Font_color_suffix} 开启  ${Green_font_prefix} 2.${Fon
 
 # 设置 DNS
 setDNS(){
-	echo -e "${Tip} 请输入正确格式的 DNS，多条记录以英文逗号隔开，仅支持 v4.1.0b1 版本及以上。"
-	local p_prompt="(默认值：1.1.1.1, 8.8.8.8, 2001:4860:4860::8888)："
-	[[ -n "$dns" ]] && p_prompt="(当前: ${dns} | 默认值：1.1.1.1, 8.8.8.8, 2001:4860:4860::8888)："
-	read -e -p "${p_prompt}" input_dns
-	[[ -z "${input_dns}" ]] && input_dns=${dns:-"1.1.1.1, 8.8.8.8, 2001:4860:4860::8888"}
+	echo -e "${Tip} 请输入正确格式的 DNS，多条记录以英文逗号隔开，仅支持Snell v4.1.0b1 版本及以上。"
+	local p_prompt="(${Green_font_prefix}默认值${Font_color_suffix}：1.1.1.1, 8.8.8.8, 2001:4860:4860::8888)："
+	[[ -n "$dns" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${dns} | ${Green_font_prefix}默认值${Font_color_suffix}：1.1.1.1, 8.8.8.8, 2001:4860:4860::8888)："
+	echo -e -n "${p_prompt}"
+	read -e input_dns
+	[[ -z "${input_dns}" ]] && input_dns="1.1.1.1, 8.8.8.8, 2001:4860:4860::8888"
 	dns=$input_dns
 	echo && echo "=================================="
 	echo -e "当前 DNS 为：${Red_background_prefix} ${dns} ${Font_color_suffix}"
@@ -807,7 +816,7 @@ setDNS(){
 }
 
 
-# 设置 DNS IP 偏好 (v6 专属)
+# 设置 DNS IP 偏好 (Snell v6 专属)
 setDNSIPPref(){
 	echo -e "配置 DNS IP 偏好 (Snell v6 专属)
 ==================================
@@ -815,10 +824,11 @@ ${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Fo
 =================================="
 	local current_opt="1"
 	if [[ "$dns_ip_pref" == "prefer-ipv4" ]]; then current_opt="2"; elif [[ "$dns_ip_pref" == "prefer-ipv6" ]]; then current_opt="3"; elif [[ "$dns_ip_pref" == "ipv4-only" ]]; then current_opt="4"; elif [[ "$dns_ip_pref" == "ipv6-only" ]]; then current_opt="5"; fi
-	local p_prompt="(默认：1.default)："
-	[[ -n "$dns_ip_pref" ]] && p_prompt="(当前: ${current_opt}.${dns_ip_pref} | 默认：1.default)："
-	read -e -p "${p_prompt}" input_pref
-	[[ -z "${input_pref}" ]] && input_pref=${current_opt:-"1"}
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：1.default)："
+	[[ -n "$dns_ip_pref" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${dns_ip_pref} | ${Green_font_prefix}默认${Font_color_suffix}：1.default)："
+	echo -e -n "${p_prompt}"
+	read -e input_pref
+	[[ -z "${input_pref}" ]] && input_pref="1"
 	dns_ip_pref_opt=$input_pref
 	if [[ ${dns_ip_pref_opt} == "2" ]]; then
 		dns_ip_pref="prefer-ipv4"
@@ -841,7 +851,7 @@ switchBinary(){
     local old_ver=$1
     local new_ver=$2
 
-    echo -e "${Info} 开始下载 v${new_ver} 版本..."
+    echo -e "${Info} 开始下载 Snell v${new_ver} 版本..."
     systemctl stop snell-server
 
     if [[ -e "${snell_bin}" ]]; then
@@ -864,14 +874,14 @@ switchBinary(){
     if [[ -n "$web_version" ]]; then
         if validateVersionUrl "$web_version"; then
             target_full_version="$web_version"
-            echo -e "${Info} 使用网页获取的 v${new_ver} 版本: v${target_full_version}"
+            echo -e "${Info} 使用网页获取的 Snell v${new_ver} 版本: v${target_full_version}"
         fi
     fi
 
     if [[ -z "$target_full_version" && -n "$script_version" ]]; then
         if validateVersionUrl "$script_version"; then
             target_full_version="$script_version"
-            echo -e "${Info} 使用脚本内置的 v${new_ver} 版本: v${target_full_version}"
+            echo -e "${Info} 使用脚本内置的 Snell v${new_ver} 版本: v${target_full_version}"
         fi
     fi
 
@@ -880,22 +890,22 @@ switchBinary(){
     fi
 
     if [[ -n "$target_full_version" ]]; then
-        downloadSnell "${target_full_version}" "v${new_ver} 版本" true "$old_ver"
+        downloadSnell "${target_full_version}" "Snell v${new_ver} 版本" true "$old_ver"
         if [[ $? -eq 0 ]]; then
-            echo -e "${Info} v${new_ver} 核心切换成功！"
+            echo -e "${Info} Snell v${new_ver} 核心切换成功！"
             return 0
         else
-            echo -e "${Error} v${new_ver} 下载失败，正在回滚..."
+            echo -e "${Error} Snell v${new_ver} 下载失败，正在回滚..."
         fi
     else
-        echo -e "${Error} 无法找到 v${new_ver} 的下载链接，切换失败！"
+        echo -e "${Error} 无法找到 Snell v${new_ver} 的下载链接，切换失败！"
     fi
 
     backup_file=$(ls -t "${snell_bin}".v${old_ver}.backup.* 2>/dev/null | head -1)
     if [[ -n "$backup_file" && -e "$backup_file" ]]; then
         cp "$backup_file" "${snell_bin}"
         echo "v${old_ver}" > ${snell_version_file}
-        echo -e "${Info} 已回滚到 v${old_ver} 版本"
+        echo -e "${Info} 已回滚到 Snell v${old_ver} 版本"
     fi
     systemctl start snell-server
     return 1
@@ -974,10 +984,10 @@ setConfig(){
 
         if [[ "$ver" != "$current_installed_ver" ]]; then
             if [[ "$ver" -gt "$current_installed_ver" ]]; then
-                echo -e "${Info} 协议版本将从 v${current_installed_ver} 升级到 v${ver}"
+                echo -e "${Info} 协议版本将从 Snell v${current_installed_ver} 升级到 Snell v${ver}"
                 echo -e "确定要升级吗？(y/N)"
             else
-                echo -e "${Info} 协议版本将从 v${current_installed_ver} 降级到 v${ver}"
+                echo -e "${Info} 协议版本将从 Snell v${current_installed_ver} 降级到 Snell v${ver}"
                 echo -e "确定要降级吗？(y/N)"
             fi
             read -e -p "(默认: n):" confirm
@@ -1015,7 +1025,7 @@ setConfig(){
                             ver=$current_installed_ver
                             writeConfig
                             systemctl start snell-server
-                            echo -e "${Info} 已回滚到 v${current_installed_ver} 版本并恢复配置"
+                            echo -e "${Info} 已回滚到 Snell v${current_installed_ver} 版本并恢复配置"
                         fi
                     else
                         echo -e "${Info} Snell Server 重启完毕！"
@@ -1036,7 +1046,7 @@ setConfig(){
         restartSnell
     elif [[ "${modify}" == "9" ]]; then
         if [[ "$current_installed_ver" != "6" ]]; then
-            echo -e "${Error} 当前版本不是 v6，不支持 DNS IP 偏好配置！"
+            echo -e "${Error} 当前版本不是 Snell v6，不支持 DNS IP 偏好配置！"
             sleep 2s; setConfig; return
         fi
         setDNSIPPref
@@ -1051,10 +1061,10 @@ setConfig(){
 
         if [[ "$ver" != "$current_installed_ver" ]]; then
             if [[ "$ver" -gt "$current_installed_ver" ]]; then
-                echo -e "${Info} 协议版本将从 v${current_installed_ver} 升级到 v${ver}"
+                echo -e "${Info} 协议版本将从 Snell v${current_installed_ver} 升级到 Snell v${ver}"
                 echo -e "确定要升级吗？(y/N)"
             else
-                echo -e "${Info} 协议版本将从 v${current_installed_ver} 降级到 v${ver}"
+                echo -e "${Info} 协议版本将从 Snell v${current_installed_ver} 降级到 Snell v${ver}"
                 echo -e "确定要降级吗？(y/N)"
             fi
             read -e -p "(默认: n):" confirm
@@ -1236,7 +1246,7 @@ installSnellV5(){
 
 # 下载并安装 Snell v6（官方源）
 downloadSnellV6(){
-	downloadSnell "${snell_v6_version}" "v6 官网源版"
+	downloadSnell "${snell_v6_version}" "Snell v6 官网源版"
 }
 
 # 安装 Snell v6
@@ -1332,9 +1342,9 @@ updateV4toV5(){
 	checkInstalledStatus
 	readConfig
 
-	# 检查当前版本是否为 v4
+	# 检查当前版本是否为 Snell v4
 	if [[ "$ver" != "4" ]]; then
-		echo -e "${Error} 当前版本不是 v4，无法使用此功能！当前版本：v${ver}"
+		echo -e "${Error} 当前版本不是 Snell v4，无法使用此功能！当前版本：Snell v${ver}"
 		sleep 3s
 		startMenu
 		return 1
@@ -1352,7 +1362,7 @@ updateV4toV5(){
 		return 0
 	fi
 
-	echo -e "${Info} 开始更新 Snell Server v4 到 v5..."
+	echo -e "${Info} 开始更新 Snell v4 到 Snell v5..."
 
 	# 停止服务
 	echo -e "${Info} 停止 Snell Server 服务..."
@@ -1364,19 +1374,19 @@ updateV4toV5(){
 		cp "${snell_bin}" "${snell_bin}.v4.backup.$(date +%Y%m%d_%H%M%S)"
 	fi
 
-	# 获取当前安装的 v4 版本作为回退版本
+	# 获取当前安装的 Snell v4 版本作为回退版本
 	current_v4_version=$(cat ${snell_version_file} | sed 's/^v//')
 
 	# 获取最新的 v5 版本号（优先使用网页版本，然后是脚本内置版本）
 	web_v5_version=$(getLatestVersionFromWeb "v5")
 	script_v5_version="${snell_v5_version}"
 
-	# 选择最新的 v5 版本
+	# 选择最新的 Snell v5 版本
 	target_v5_version=""
 	if [[ -n "$web_v5_version" ]]; then
 		if validateVersionUrl "$web_v5_version"; then
 			target_v5_version="$web_v5_version"
-			echo -e "${Info} 使用网页获取的 v5 版本: v${target_v5_version}"
+			echo -e "${Info} 使用网页获取的 Snell v5 版本: v${target_v5_version}"
 		fi
 	fi
 
@@ -1384,13 +1394,13 @@ updateV4toV5(){
 	if [[ -z "$target_v5_version" && -n "$script_v5_version" ]]; then
 		if validateVersionUrl "$script_v5_version"; then
 			target_v5_version="$script_v5_version"
-			echo -e "${Info} 使用脚本内置的 v5 版本: v${target_v5_version}"
+			echo -e "${Info} 使用脚本内置的 Snell v5 版本: v${target_v5_version}"
 		fi
 	fi
 
 	# 如果都无效，取消更新
 	if [[ -z "$target_v5_version" ]]; then
-		echo -e "${Error} 无法找到有效的 v5 版本进行更新"
+		echo -e "${Error} 无法找到有效的 Snell v5 版本进行更新"
 		systemctl start snell-server
 		sleep 3s
 		startMenu
@@ -1398,8 +1408,8 @@ updateV4toV5(){
 	fi
 
 	# 下载并安装 v5，启用回退机制
-	echo -e "${Info} 开始下载 v5 版本..."
-	downloadSnell "${target_v5_version}" "v5 版本" true "${current_v4_version}"
+	echo -e "${Info} 开始下载 Snell v5 版本..."
+	downloadSnell "${target_v5_version}" "Snell v5 版本" true "${current_v4_version}"
 
 	if [[ $? -eq 0 ]]; then
         actual_version=$(cat ${snell_version_file} | sed 's/^v//')
@@ -1409,7 +1419,7 @@ updateV4toV5(){
             echo -e "${Info} 更新配置文件版本号..."
             sed -i "s/version = 4/version = 5/g" "${snell_conf}"
         else
-            echo -e "${Tip} 注意：由于 v5 下载链接问题，已回退重新安装 v${actual_version} 版本"
+            echo -e "${Tip} 注意：由于 Snell v5 下载链接问题，已回退重新安装 Snell v${actual_version} 版本"
         fi
 
 		# 重新加载 systemd 并启动服务
@@ -1422,23 +1432,23 @@ updateV4toV5(){
 		checkStatus
 		if [[ "$status" == "running" ]]; then
             if [[ "$actual_version" =~ ^5\. ]]; then
-			    echo -e "${Info} v4 到 v5 更新成功！"
-			    echo -e "${Info} 当前版本：v${actual_version}"
+			    echo -e "${Info} Snell v4 到 Snell v5 更新成功！"
+			    echo -e "${Info} 当前版本：Snell v${actual_version}"
             fi
 		else
 			echo -e "${Error} 服务启动失败，正在回滚..."
-			# 回滚到 v4
+			# 回滚到 Snell v4
 			backup_file=$(ls -t "${snell_bin}".v4.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
 				cp "$backup_file" "${snell_bin}"
 				echo "v${current_v4_version}" > ${snell_version_file}
 				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
 				systemctl start snell-server
-				echo -e "${Info} 已回滚到 v4 版本"
+				echo -e "${Info} 已回滚到 Snell v4 版本"
 			fi
 		fi
 	else
-		echo -e "${Error} v5 下载失败，保持 v4 版本"
+		echo -e "${Error} Snell v5 下载失败，保持 Snell v4 版本"
 		systemctl start snell-server
 	fi
 
@@ -1453,7 +1463,7 @@ updateV5toV6(){
 	readConfig
 
 	if [[ "$ver" != "5" ]]; then
-		echo -e "${Error} 当前版本不是 v5，无法使用此功能！当前版本：v${ver}"
+		echo -e "${Error} 当前版本不是 Snell v5，无法使用此功能！当前版本：Snell v${ver}"
 		sleep 3s
 		startMenu
 		return 1
@@ -1471,7 +1481,7 @@ updateV5toV6(){
 		return 0
 	fi
 
-	echo -e "${Info} 开始更新 Snell Server v5 到 v6..."
+	echo -e "${Info} 开始更新 Snell v5 到 Snell v6..."
 
 	systemctl stop snell-server
 
@@ -1488,27 +1498,27 @@ updateV5toV6(){
 	if [[ -n "$web_v6_version" ]]; then
 		if validateVersionUrl "$web_v6_version"; then
 			target_v6_version="$web_v6_version"
-			echo -e "${Info} 使用网页获取的 v6 版本: v${target_v6_version}"
+			echo -e "${Info} 使用网页获取的 Snell v6 版本: v${target_v6_version}"
 		fi
 	fi
 
 	if [[ -z "$target_v6_version" && -n "$script_v6_version" ]]; then
 		if validateVersionUrl "$script_v6_version"; then
 			target_v6_version="$script_v6_version"
-			echo -e "${Info} 使用脚本内置的 v6 版本: v${target_v6_version}"
+			echo -e "${Info} 使用脚本内置的 Snell v6 版本: v${target_v6_version}"
 		fi
 	fi
 
 	if [[ -z "$target_v6_version" ]]; then
-		echo -e "${Error} 无法找到有效的 v6 版本进行更新"
+		echo -e "${Error} 无法找到有效的 Snell v6 版本进行更新"
 		systemctl start snell-server
 		sleep 3s
 		startMenu
 		return 1
 	fi
 
-	echo -e "${Info} 开始下载 v6 版本..."
-	downloadSnell "${target_v6_version}" "v6 版本" true "${current_v5_version}"
+	echo -e "${Info} 开始下载 Snell v6 版本..."
+	downloadSnell "${target_v6_version}" "Snell v6 版本" true "${current_v5_version}"
 
 	if [[ $? -eq 0 ]]; then
         actual_version=$(cat ${snell_version_file} | sed 's/^v//')
@@ -1520,7 +1530,7 @@ updateV5toV6(){
             checkPskForV6
             writeConfig
         else
-            echo -e "${Tip} 注意：由于 v6 下载链接问题，已回退重新安装 v${actual_version} 版本"
+            echo -e "${Tip} 注意：由于 Snell v6 下载链接问题，已回退重新安装 Snell v${actual_version} 版本"
         fi
 
 		systemctl daemon-reload
@@ -1535,8 +1545,8 @@ updateV5toV6(){
 		done
 		if [[ "$status" == "running" ]]; then
             if [[ "$actual_version" =~ ^6\. ]]; then
-			    echo -e "${Info} v5 到 v6 更新成功！"
-			    echo -e "${Info} 当前版本：v${actual_version}"
+			    echo -e "${Info} Snell v5 到 Snell v6 更新成功！"
+			    echo -e "${Info} 当前版本：Snell v${actual_version}"
             fi
 		else
 			echo -e "${Error} 升级后服务启动失败，以下为错误日志："
@@ -1549,11 +1559,11 @@ updateV5toV6(){
 				ver=5
 				writeConfig
 				systemctl start snell-server
-				echo -e "${Info} 已回滚到 v5 版本"
+				echo -e "${Info} 已回滚到 Snell v5 版本"
 			fi
 		fi
 	else
-		echo -e "${Error} v6 下载失败，保持 v5 版本"
+		echo -e "${Error} Snell v6 下载失败，保持 Snell v5 版本"
 		systemctl start snell-server
 	fi
 
@@ -1636,16 +1646,16 @@ updateSnellServer(){
     echo -e "${Info} 开始下载最新版本..."
     case "$ver" in
         "4")
-            downloadSnell "${latest_available_version}" "v4 最新版" true "${current_installed_version}"
+            downloadSnell "${latest_available_version}" "Snell v4 最新版" true "${current_installed_version}"
             ;;
         "5")
-            downloadSnell "${latest_available_version}" "v5 最新版" true "${current_installed_version}"
+            downloadSnell "${latest_available_version}" "Snell v5 最新版" true "${current_installed_version}"
             ;;
         "6")
-            downloadSnell "${latest_available_version}" "v6 最新版" true "${current_installed_version}"
+            downloadSnell "${latest_available_version}" "Snell v6 最新版" true "${current_installed_version}"
             ;;
         *)
-            echo -e "${Error} 不支持的版本: v${ver}"
+            echo -e "${Error} 不支持的版本: Snell v${ver}"
             systemctl start snell-server
             sleep 3s
             startMenu
@@ -1773,7 +1783,7 @@ updateBuiltinVersions(){
 
     [[ "$show_info" == true ]] && echo -e "${Info} 正在检查官方最新版本..."
 
-    # 获取最新的 v4 版本
+    # 获取最新的 Snell v4 版本
     local latest_v4_web
     latest_v4_web=$(getLatestVersionFromWeb "v4")
     if [[ $? -eq 0 && -n "$latest_v4_web" ]]; then
@@ -1821,7 +1831,7 @@ updateBuiltinVersions(){
         latest_v6_web="${snell_v6_version}"
     fi
 
-    # 更新缓存（缓存 v4, v5, v6）
+    # 更新缓存（缓存 Snell v4, Snell v5, Snell v6）
     echo "$current_time" > "$cache_file"
     echo "$latest_v4_web" >> "$cache_file"
     echo "$latest_v5_web" >> "$cache_file"
@@ -1836,9 +1846,9 @@ forceCheckVersions(){
     updateBuiltinVersions true
 
     echo -e "${Info} 版本检查完成！"
-    echo -e "${Info} 脚本内置 v4 版本: ${Green_font_prefix}${snell_v4_version}${Font_color_suffix}"
-    echo -e "${Info} 脚本内置 v5 版本: ${Green_font_prefix}${snell_v5_version}${Font_color_suffix}"
-    echo -e "${Info} 脚本内置 v6 版本: ${Green_font_prefix}${snell_v6_version}${Font_color_suffix}"
+    echo -e "${Info} 脚本内置 Snell v4 版本: ${Green_font_prefix}${snell_v4_version}${Font_color_suffix}"
+    echo -e "${Info} 脚本内置 Snell v5 版本: ${Green_font_prefix}${snell_v5_version}${Font_color_suffix}"
+    echo -e "${Info} 脚本内置 Snell v6 版本: ${Green_font_prefix}${snell_v6_version}${Font_color_suffix}"
 
     # 获取网页版本进行对比
     web_v4=$(getLatestVersionFromWeb "v4")
@@ -1846,32 +1856,32 @@ forceCheckVersions(){
     web_v6=$(getLatestVersionFromWeb "v6")
 
     if [[ -n "$web_v4" ]]; then
-        echo -e "${Info} 网页获取 v4 版本: ${Yellow_font_prefix}${web_v4}${Font_color_suffix}"
+        echo -e "${Info} 网页获取 Snell v4 版本: ${Yellow_font_prefix}${web_v4}${Font_color_suffix}"
         compareVersions "${snell_v4_version}" "$web_v4"
         case $? in
-            1) echo -e "${Info} v4 版本状态: 脚本内置版本与网页版本相同" ;;
-            0) echo -e "${Info} v4 版本状态: 脚本内置版本比网页版本更新" ;;
-            2) echo -e "${Tip} v4 版本状态: 网页版本比脚本内置版本更新" ;;
+            1) echo -e "${Info} Snell v4 版本状态: 脚本内置版本与网页版本相同" ;;
+            0) echo -e "${Info} Snell v4 版本状态: 脚本内置版本比网页版本更新" ;;
+            2) echo -e "${Tip} Snell v4 版本状态: 网页版本比脚本内置版本更新" ;;
         esac
     fi
 
     if [[ -n "$web_v5" ]]; then
-        echo -e "${Info} 网页获取 v5 版本: ${Yellow_font_prefix}${web_v5}${Font_color_suffix}"
+        echo -e "${Info} 网页获取 Snell v5 版本: ${Yellow_font_prefix}${web_v5}${Font_color_suffix}"
         compareVersions "${snell_v5_version}" "$web_v5"
         case $? in
-            1) echo -e "${Info} v5 版本状态: 脚本内置版本与网页版本相同" ;;
-            0) echo -e "${Info} v5 版本状态: 脚本内置版本比网页版本更新" ;;
-            2) echo -e "${Tip} v5 版本状态: 网页版本比脚本内置版本更新" ;;
+            1) echo -e "${Info} Snell v5 版本状态: 脚本内置版本与网页版本相同" ;;
+            0) echo -e "${Info} Snell v5 版本状态: 脚本内置版本比网页版本更新" ;;
+            2) echo -e "${Tip} Snell v5 版本状态: 网页版本比脚本内置版本更新" ;;
         esac
     fi
 
     if [[ -n "$web_v6" ]]; then
-        echo -e "${Info} 网页获取 v6 版本: ${Yellow_font_prefix}${web_v6}${Font_color_suffix}"
+        echo -e "${Info} 网页获取 Snell v6 版本: ${Yellow_font_prefix}${web_v6}${Font_color_suffix}"
         compareVersions "${snell_v6_version}" "$web_v6"
         case $? in
-            1) echo -e "${Info} v6 版本状态: 脚本内置版本与网页版本相同" ;;
-            0) echo -e "${Info} v6 版本状态: 脚本内置版本比网页版本更新" ;;
-            2) echo -e "${Tip} v6 版本状态: 网页版本比脚本内置版本更新" ;;
+            1) echo -e "${Info} Snell v6 版本状态: 脚本内置版本与网页版本相同" ;;
+            0) echo -e "${Info} Snell v6 版本状态: 脚本内置版本比网页版本更新" ;;
+            2) echo -e "${Tip} Snell v6 版本状态: 网页版本比脚本内置版本更新" ;;
         esac
     fi
 
@@ -2168,7 +2178,7 @@ startMenu(){
     # 检查版本更新（在显示菜单前）
     checkVersionUpdateWithProgress
 
-    # 检查是否安装了 v4/v5 版本，需要显示更新选项
+    # 检查是否安装了Snell v4/v5 版本，需要显示更新选项
     show_v4_to_v5_option=false
     show_v5_to_v6_option=false
     show_update_option=false
@@ -2181,7 +2191,7 @@ startMenu(){
         if [[ "$current_ver" == "5" ]]; then
             show_v5_to_v6_option=true
         fi
-        # 只有 v4/v5/v6 显示更新选项
+        # 只有 Snell v4/v5/v6 显示更新选项
         if [[ "$current_ver" == "4" || "$current_ver" == "5" || "$current_ver" == "6" ]]; then
             show_update_option=true
         fi
