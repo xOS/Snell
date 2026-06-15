@@ -9,12 +9,12 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="1.9.3"
+sh_ver="1.9.4"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.1"
-snell_v6_version="6.0.0b2"
+snell_v6_version="6.0.0b3"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
@@ -548,9 +548,17 @@ dns = ${dns}"
         else
             config_content+=$'\n'"dns-ip-preference = default"
         fi
+        if [[ -n "${mode}" ]]; then
+            config_content+=$'\n'"mode = ${mode}"
+        else
+            config_content+=$'\n'"mode = default"
+        fi
     else
         if [[ -n "${dns_ip_pref}" ]]; then
             config_content+=$'\n'"# dns-ip-preference = ${dns_ip_pref}"
+        fi
+        if [[ -n "${mode}" ]]; then
+            config_content+=$'\n'"# mode = ${mode}"
         fi
     fi
 
@@ -563,7 +571,7 @@ dns = ${dns}"
     # 保留未知的自定义配置项
     if [[ -f "${snell_conf}" ]]; then
         local custom_configs=$(awk -F '=' '{
-            if ($1 !~ /^[[:space:]]*(listen|ipv6|psk|obfs|obfs-host|tfo|dns|dns-ip-preference|version|egress-interface|\[snell-server\]|#)[[:space:]]*/) {
+            if ($1 !~ /^[[:space:]]*(listen|ipv6|psk|obfs|obfs-host|tfo|dns|dns-ip-preference|mode|version|egress-interface|\[snell-server\]|#)[[:space:]]*/) {
                 if (NF > 0 && $0 !~ /^[[:space:]]*$/) {
                     print $0
                 }
@@ -595,11 +603,14 @@ readConfig(){
 	ver=$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')
 	dns_ip_pref=$(cat ${snell_conf}|grep 'dns-ip-preference = '|awk -F 'dns-ip-preference = ' '{print $NF}')
 	[[ -z "$dns_ip_pref" && "$ver" == "6" ]] && dns_ip_pref="default"
+	mode=$(cat ${snell_conf}|grep 'mode = '|awk -F 'mode = ' '{print $NF}')
+	[[ -z "$mode" && "$ver" == "6" ]] && mode="default"
 	egress_interface=$(cat ${snell_conf}|grep 'egress-interface = '|awk -F 'egress-interface = ' '{print $NF}')
 }
 
 # 设置端口
 setPort(){
+    local orig_port="$port"
     while true; do
         echo -e "${Tip} 本步骤不涉及系统防火墙端口操作，请手动放行相应端口！"
         echo -e "请输入 Snell Server 端口${Yellow_font_prefix}[1-65535]${Font_color_suffix}"
@@ -615,7 +626,7 @@ setPort(){
             listen_val="::0:${port}"
         fi
         if [[ $port =~ ^[0-9]+$ ]] && [[ $port -ge 1 && $port -le 65535 ]]; then
-            if ss -tuln | grep -q ":$port "; then
+            if [[ "$port" != "$orig_port" ]] && ss -tuln | grep -q ":$port "; then
                 echo -e "${Error} 端口 $port 已被占用，请选择其他端口。"
             else
                 echo && echo "=============================="
@@ -846,6 +857,32 @@ ${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Fo
 	echo "==================================" && echo
 }
 
+# 设置 模式 (Snell v6 专属)
+setMode(){
+	echo -e "配置 混淆模式
+==================================
+${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Font_color_suffix} unshaped ${Green_font_prefix} 3.${Font_color_suffix} unsafe-raw
+=================================="
+	local current_opt="1"
+	if [[ "$mode" == "unshaped" ]]; then current_opt="2"; elif [[ "$mode" == "unsafe-raw" ]]; then current_opt="3"; fi
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}：1.default)："
+	[[ -n "$mode" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${mode} | ${Green_font_prefix}默认${Font_color_suffix}：1.default)："
+	echo -e -n "${p_prompt}"
+	read -e input_pref
+	[[ -z "${input_pref}" ]] && input_pref="1"
+	mode_opt=$input_pref
+	if [[ ${mode_opt} == "2" ]]; then
+		mode="unshaped"
+	elif [[ ${mode_opt} == "3" ]]; then
+		mode="unsafe-raw"
+	else
+		mode="default"
+	fi
+	echo && echo "=================================="
+	echo -e "混淆模式：${Red_background_prefix} ${mode} ${Font_color_suffix}"
+	echo "==================================" && echo
+}
+
 # 切换二进制版本
 switchBinary(){
     local old_ver=$1
@@ -928,12 +965,13 @@ setConfig(){
     fi
     echo -e " ${Green_font_prefix}6.${Font_color_suffix} 开关 TCP Fast Open"
     echo -e " ${Green_font_prefix}7.${Font_color_suffix} 配置 DNS"
-    echo -e " ${Green_font_prefix}8.${Font_color_suffix} 配置 Snell Server 协议版本"
+    echo -e " ${Green_font_prefix}8.${Font_color_suffix} 配置 Snell 协议版本"
     if [[ "$current_installed_ver" == "6" ]]; then
         echo -e " ${Green_font_prefix}9.${Font_color_suffix} 配置 DNS IP 偏好"
+        echo -e "${Green_font_prefix}10.${Font_color_suffix} 配置 混淆模式"
     fi
     echo -e "=============================="
-    echo -e " ${Green_font_prefix}10.${Font_color_suffix} 修改 全部配置" && echo
+    echo -e "${Green_font_prefix}11.${Font_color_suffix} 修改 全部配置" && echo
     read -e -p "(默认: 取消):" modify
     [[ -z "${modify}" ]] && echo "已取消..." && exit 1
     if [[ "${modify}" == "1" ]]; then
@@ -996,6 +1034,7 @@ setConfig(){
             if [[ ${confirm} == [Yy] ]]; then
                 if [[ "$ver" == "6" ]]; then
                     setDNSIPPref
+                    setMode
                     checkPskForV6
                 else
                     setObfs
@@ -1053,6 +1092,14 @@ setConfig(){
         writeConfig
         restartSnell
     elif [[ "${modify}" == "10" ]]; then
+        if [[ "$current_installed_ver" != "6" ]]; then
+            echo -e "${Error} 当前版本不是 Snell v6，不支持 混淆模式配置！"
+            sleep 2s; setConfig; return
+        fi
+        setMode
+        writeConfig
+        restartSnell
+    elif [[ "${modify}" == "11" ]]; then
         readConfig
         local current_installed_ver=$(cat ${snell_version_file} | sed 's/^v//' | awk -F. '{print $1}')
         [[ -z "$current_installed_ver" ]] && current_installed_ver=$ver
@@ -1086,6 +1133,7 @@ setConfig(){
 
         if [[ "$ver" == "6" ]]; then
             setDNSIPPref
+            setMode
             checkPskForV6
         else
             setObfs
@@ -1132,7 +1180,7 @@ setConfig(){
             restartSnell
         fi
     else
-        echo -e "${Error} 请输入正确数字${Yellow_font_prefix}[1-10]${Font_color_suffix}"
+        echo -e "${Error} 请输入正确数字${Yellow_font_prefix}[1-11]${Font_color_suffix}"
         sleep 2s
         setConfig
     fi
@@ -1259,6 +1307,7 @@ installSnellV6(){
 	setTFO
 	setDNS
 	setDNSIPPref
+	setMode
 	echo -e "${Info} 开始安装/配置 依赖..."
 	checkDependencies
 	installDependencies
@@ -1707,6 +1756,7 @@ updateV5toV6(){
             echo -e "${Info} 更新配置文件版本号..."
             ver=6
             setDNSIPPref
+            setMode
             checkPskForV6
             writeConfig
         else
@@ -2155,6 +2205,10 @@ viewConfig(){
         echo -e " DNS IP 偏好\t: ${Green_font_prefix}${dns_ip_pref}${Font_color_suffix}"
     fi
 
+    if [[ "$ver" == "6" && -n "$mode" ]]; then
+        echo -e " 混淆模式\t: ${Green_font_prefix}${mode}${Font_color_suffix}"
+    fi
+
     echo -e " 版本\t\t: ${Green_font_prefix}${ver}${Font_color_suffix}"
     echo -e "——————————————————————————————————————————————————"
     if [[ "$ver" == "6" ]]; then
@@ -2164,13 +2218,21 @@ viewConfig(){
     echo -e "${Info} Surge 配置："
     if [[ "${ipv4}" != "IPv4_Error" ]]; then
         if [[ "${obfs}" == "off" || "${ver}" == "6" ]]; then
-            echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
+            if [[ "${ver}" == "6" && -n "${mode}" ]]; then
+                echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, mode=${mode}, reuse=true, ecn=true"
+            else
+                echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
+            fi
         else
             echo -e "$(uname -n) = snell, ${ipv4}, ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, obfs-host=${host}, reuse=true, ecn=true"
         fi
     elif [[ "${ip6}" != "IPv6_Error" ]]; then
         if [[ "${obfs}" == "off" || "${ver}" == "6" ]]; then
-            echo -e "$(uname -n) = snell, [${ip6}], ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
+            if [[ "${ver}" == "6" && -n "${mode}" ]]; then
+                echo -e "$(uname -n) = snell, [${ip6}], ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, mode=${mode}, reuse=true, ecn=true"
+            else
+                echo -e "$(uname -n) = snell, [${ip6}], ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, reuse=true, ecn=true"
+            fi
         else
             echo -e "$(uname -n) = snell, [${ip6}], ${port}, psk=${psk}, version=${ver}, tfo=${tfo}, obfs=${obfs}, obfs-host=${host}, reuse=true, ecn=true"
         fi
