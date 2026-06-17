@@ -9,7 +9,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="1.9.4"
+sh_ver="1.9.5"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -839,7 +839,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Fo
 	[[ -n "$dns_ip_pref" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${dns_ip_pref} | ${Green_font_prefix}默认${Font_color_suffix}：1.default)："
 	echo -e -n "${p_prompt}"
 	read -e input_pref
-	[[ -z "${input_pref}" ]] && input_pref="1"
+	[[ -z "${input_pref}" && -n "$dns_ip_pref" ]] && input_pref=$current_opt
+	[[ -z "${input_pref}" && -z "$dns_ip_pref" ]] && input_pref="1"
 	dns_ip_pref_opt=$input_pref
 	if [[ ${dns_ip_pref_opt} == "2" ]]; then
 		dns_ip_pref="prefer-ipv4"
@@ -869,7 +870,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Fo
 	[[ -n "$mode" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${current_opt}.${mode} | ${Green_font_prefix}默认${Font_color_suffix}：1.default)："
 	echo -e -n "${p_prompt}"
 	read -e input_pref
-	[[ -z "${input_pref}" ]] && input_pref="1"
+	[[ -z "${input_pref}" && -n "$mode" ]] && input_pref=$current_opt
+	[[ -z "${input_pref}" && -z "$mode" ]] && input_pref="1"
 	mode_opt=$input_pref
 	if [[ ${mode_opt} == "2" ]]; then
 		mode="unshaped"
@@ -1084,6 +1086,7 @@ setConfig(){
         writeConfig
         restartSnell
     elif [[ "${modify}" == "9" ]]; then
+        readConfig
         if [[ "$current_installed_ver" != "6" ]]; then
             echo -e "${Error} 当前版本不是 Snell v6，不支持 DNS IP 偏好配置！"
             sleep 2s; setConfig; return
@@ -1092,6 +1095,7 @@ setConfig(){
         writeConfig
         restartSnell
     elif [[ "${modify}" == "10" ]]; then
+        readConfig
         if [[ "$current_installed_ver" != "6" ]]; then
             echo -e "${Error} 当前版本不是 Snell v6，不支持 混淆模式配置！"
             sleep 2s; setConfig; return
