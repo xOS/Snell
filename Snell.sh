@@ -9,12 +9,12 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="1.9.5"
+sh_ver="1.9.6"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
 snell_v5_version="5.0.1"
-snell_v6_version="6.0.0b3"
+snell_v6_version="6.0.0b4"
 script_dir=$(cd "$(dirname "$0")"; pwd)
 script_path=$(echo -e "${script_dir}"|awk -F "$0" '{print $1}')
 snell_dir="/etc/snell/"
@@ -776,11 +776,11 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2 ${Green_font_prefix} 3.${Font_col
 # 设置 OBFS 域名
 setHost(){
 	echo "请输入 Snell Server 域名，Snell v4 版本及以上如无特别需求可忽略。"
-	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}: icloud.com):"
-	[[ -n "$host" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${host} | ${Green_font_prefix}默认${Font_color_suffix}: icloud.com):"
+	local p_prompt="(${Green_font_prefix}默认${Font_color_suffix}: www.wechat.com):"
+	[[ -n "$host" ]] && p_prompt="(${Yellow_font_prefix}当前${Font_color_suffix}: ${host} | ${Green_font_prefix}默认${Font_color_suffix}: www.wechat.com):"
 	echo -e -n "${p_prompt}"
 	read -e input_host
-	[[ -z "${input_host}" ]] && input_host="icloud.com"
+	[[ -z "${input_host}" ]] && input_host="www.wechat.com"
 	host=$input_host
 	echo && echo "=============================="
 	echo -e "域名 : ${Red_background_prefix} ${host} ${Font_color_suffix}"
