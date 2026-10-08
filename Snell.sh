@@ -30,7 +30,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.1.2"
+sh_ver="2.1.3"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -161,38 +161,30 @@ initServiceMgr(){
 
 # 检查依赖
 checkDependencies(){
-    local deps=("wget" "curl" "unzip")
-    if ! command -v ss &>/dev/null; then
+    local deps=("curl" "unzip")
+    if ! command -v ss &>/dev/null && ! command -v netstat &>/dev/null; then
         deps+=("ss")
     fi
     if [[ ${release} == "alpine" ]]; then
         if ! apk info -e gcompat &>/dev/null || ! apk info -e libstdc++ &>/dev/null; then
             deps+=("gcompat")
         fi
-        if ! command -v sort &>/dev/null || ! sort --version &>/dev/null; then
-            deps+=("coreutils")
-        fi
     fi
     for cmd in "${deps[@]}"; do
         if [[ "$cmd" == "ss" ]]; then
-            if ! command -v ss &>/dev/null; then
-                echo -e "${Error} 缺少依赖: ss (网络状态查看工具)，正在尝试安装..."
+            if ! command -v ss &>/dev/null && ! command -v netstat &>/dev/null; then
+                echo -e "${Error} 缺少网络查看工具，正在尝试安装..."
                 if [[ -f /etc/debian_version ]]; then
                     apt-get update && apt-get install -y iproute2
                 elif [[ -f /etc/redhat-release ]]; then
                     yum install -y iproute
-                elif [[ ${release} == "alpine" ]] || [[ -f /etc/alpine-release ]]; then
-                    apk add --no-cache iproute2-ss || apk add --no-cache iproute2
                 fi
             fi
         elif [[ "$cmd" == "gcompat" ]]; then
-            echo -e "${Info} Alpine 系统检测：正在安装 glibc 兼容运行库 (gcompat / libc6-compat / libstdc++ / libgcc)..."
-            apk add --no-cache gcompat libc6-compat libstdc++ libgcc
+            echo -e "${Info} Alpine 精简依赖：正在补充 Snell 运行库 (gcompat / libstdc++)..."
+            apk add --no-cache gcompat libstdc++
             mkdir -p /lib64
             [[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
-        elif [[ "$cmd" == "coreutils" ]]; then
-            echo -e "${Info} Alpine 系统检测：正在安装 coreutils 工具包..."
-            apk add --no-cache coreutils
         elif ! command -v "$cmd" &> /dev/null; then
             echo -e "${Error} 缺少依赖: $cmd，正在尝试安装..."
             if [[ -f /etc/debian_version ]]; then
@@ -217,7 +209,7 @@ installDependencies(){
 		yum install gzip wget curl unzip -y
 	elif [[ ${release} == "alpine" ]]; then
 		apk update
-		apk add --no-cache bash gzip wget curl unzip coreutils iproute2-ss gcompat libc6-compat libstdc++ libgcc ca-certificates tzdata openrc
+		apk add --no-cache bash curl unzip gcompat libstdc++
 		mkdir -p /lib64
 		[[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 	else
@@ -566,7 +558,11 @@ downloadSnellFromBackup(){
 
     echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
 
-    wget --no-check-certificate -N "${backup_url}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -sSL -o "snell-server-v${version}-linux-${arch}.zip" "${backup_url}"
+    else
+        wget --no-check-certificate -O "snell-server-v${version}-linux-${arch}.zip" "${backup_url}"
+    fi
     if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
         echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
         return 1
@@ -640,7 +636,11 @@ downloadSnell(){
 		fi
 	fi
 
-	wget --no-check-certificate -N "${snell_url}"
+	if command -v curl >/dev/null 2>&1; then
+		curl -sSL -o "snell-server-v${version}-linux-${arch}.zip" "${snell_url}"
+	else
+		wget --no-check-certificate -O "snell-server-v${version}-linux-${arch}.zip" "${snell_url}"
+	fi
 	if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
 		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
 		return 1 && exit 1
@@ -867,7 +867,7 @@ setPort(){
             listen_val="::0:${port}"
         fi
         if [[ $port =~ ^[0-9]+$ ]] && [[ $port -ge 1 && $port -le 65535 ]]; then
-            if [[ "$port" != "$orig_port" ]] && ss -tuln | grep -q ":$port "; then
+            if [[ "$port" != "$orig_port" ]] && (ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null) | grep -qE ":${port}[[:space:]]|:${port}$"; then
                 echo -e "${Error} 端口 $port 已被占用，请选择其他端口。"
             else
                 echo && echo "=============================="
