@@ -1,15 +1,36 @@
-#!/usr/bin/env bash
+#!/bin/sh
+if [ -z "$BASH_VERSION" ]; then
+    if command -v bash >/dev/null 2>&1; then
+        exec bash "$0" "$@"
+    elif [ -f /etc/alpine-release ] && command -v apk >/dev/null 2>&1; then
+        echo "检测到 Alpine 系统且未安装 bash，正在自动安装 bash..."
+        apk update && apk add --no-cache bash
+        exec bash "$0" "$@"
+    elif command -v apt-get >/dev/null 2>&1; then
+        echo "未检测到 bash，正在安装 bash..."
+        apt-get update && apt-get install -y bash
+        exec bash "$0" "$@"
+    elif command -v yum >/dev/null 2>&1; then
+        echo "未检测到 bash，正在安装 bash..."
+        yum install -y bash
+        exec bash "$0" "$@"
+    else
+        echo "错误：系统缺少 bash 解释器，请先安装 bash 后再运行此脚本！"
+        echo "Alpine 安装命令: apk add bash"
+        exit 1
+    fi
+fi
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
 #=================================================
-#	System Required: CentOS/Debian/Ubuntu
+#	System Required: CentOS/Debian/Ubuntu/Alpine
 #	Description: Snell Server 管理脚本
 #	Author: 翠花
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.0.2"
+sh_ver="2.1.2"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -35,33 +56,151 @@ checkRoot(){
 
 # 检查系统类型
 checkSys(){
-	if [[ -f /etc/redhat-release ]]; then
+	if [[ -f /etc/alpine-release ]] || grep -qi "alpine" /etc/issue 2>/dev/null || grep -qi "alpine" /etc/os-release 2>/dev/null; then
+		release="alpine"
+	elif [[ -f /etc/redhat-release ]]; then
 		release="centos"
-	elif cat /etc/issue | grep -q -E -i "debian"; then
+	elif cat /etc/issue 2>/dev/null | grep -q -E -i "debian"; then
 		release="debian"
-	elif cat /etc/issue | grep -q -E -i "ubuntu"; then
+	elif cat /etc/issue 2>/dev/null | grep -q -E -i "ubuntu"; then
 		release="ubuntu"
-	elif cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
+	elif cat /etc/issue 2>/dev/null | grep -q -E -i "centos|red hat|redhat"; then
 		release="centos"
-	elif cat /proc/version | grep -q -E -i "debian"; then
+	elif cat /proc/version 2>/dev/null | grep -q -E -i "debian"; then
 		release="debian"
-	elif cat /proc/version | grep -q -E -i "ubuntu"; then
+	elif cat /proc/version 2>/dev/null | grep -q -E -i "ubuntu"; then
 		release="ubuntu"
-	elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
+	elif cat /proc/version 2>/dev/null | grep -q -E -i "centos|red hat|redhat"; then
 		release="centos"
+	else
+		release="unknown"
+	fi
+}
+
+# 检查服务管理程序 (systemd / openrc)
+checkInit(){
+    if command -v systemctl >/dev/null 2>&1 && systemctl status --version >/dev/null 2>&1; then
+        service_type="systemd"
+    elif command -v rc-service >/dev/null 2>&1 || [[ -d /run/openrc ]] || [[ -f /etc/alpine-release ]]; then
+        service_type="openrc"
+    else
+        service_type="systemd"
     fi
 }
 
+# 初始化服务管理兼容层 (在 OpenRC / Alpine 环境下包装 systemctl/journalctl)
+initServiceMgr(){
+    checkInit
+    if [[ "$service_type" == "openrc" ]] && ! command -v systemctl >/dev/null 2>&1; then
+        systemctl() {
+            local action="$1"
+            local sname="${2%.service}"
+            case "$action" in
+                start)
+                    if command -v rc-service >/dev/null 2>&1; then
+                        rc-service "$sname" start
+                    elif [[ -x "/etc/init.d/$sname" ]]; then
+                        "/etc/init.d/$sname" start
+                    fi
+                    ;;
+                stop)
+                    if command -v rc-service >/dev/null 2>&1; then
+                        rc-service "$sname" stop
+                    elif [[ -x "/etc/init.d/$sname" ]]; then
+                        "/etc/init.d/$sname" stop
+                    fi
+                    ;;
+                restart)
+                    if command -v rc-service >/dev/null 2>&1; then
+                        rc-service "$sname" restart
+                    elif [[ -x "/etc/init.d/$sname" ]]; then
+                        "/etc/init.d/$sname" restart
+                    fi
+                    ;;
+                status)
+                    if command -v rc-service >/dev/null 2>&1; then
+                        rc-service "$sname" status
+                    elif [[ -x "/etc/init.d/$sname" ]]; then
+                        "/etc/init.d/$sname" status
+                    fi
+                    ;;
+                is-active)
+                    if pgrep -x "$sname" >/dev/null 2>&1 || pidof "$sname" >/dev/null 2>&1; then
+                        return 0
+                    else
+                        return 1
+                    fi
+                    ;;
+                enable)
+                    command -v rc-update >/dev/null 2>&1 && rc-update add "$sname" default >/dev/null 2>&1
+                    ;;
+                disable)
+                    command -v rc-update >/dev/null 2>&1 && rc-update del "$sname" default >/dev/null 2>&1
+                    ;;
+                daemon-reload)
+                    return 0
+                    ;;
+                *)
+                    if command -v rc-service >/dev/null 2>&1; then
+                        rc-service "$sname" "$action"
+                    fi
+                    ;;
+            esac
+        }
+
+        if ! command -v journalctl >/dev/null 2>&1; then
+            journalctl() {
+                if [[ -f /var/log/messages ]]; then
+                    grep -i "snell" /var/log/messages 2>/dev/null | tail -n 20
+                fi
+            }
+        fi
+    fi
+}
+
+
 # 检查依赖
 checkDependencies(){
-    local deps=("wget" "unzip" "ss")
+    local deps=("wget" "curl" "unzip")
+    if ! command -v ss &>/dev/null; then
+        deps+=("ss")
+    fi
+    if [[ ${release} == "alpine" ]]; then
+        if ! apk info -e gcompat &>/dev/null || ! apk info -e libstdc++ &>/dev/null; then
+            deps+=("gcompat")
+        fi
+        if ! command -v sort &>/dev/null || ! sort --version &>/dev/null; then
+            deps+=("coreutils")
+        fi
+    fi
     for cmd in "${deps[@]}"; do
-        if ! command -v "$cmd" &> /dev/null; then
+        if [[ "$cmd" == "ss" ]]; then
+            if ! command -v ss &>/dev/null; then
+                echo -e "${Error} 缺少依赖: ss (网络状态查看工具)，正在尝试安装..."
+                if [[ -f /etc/debian_version ]]; then
+                    apt-get update && apt-get install -y iproute2
+                elif [[ -f /etc/redhat-release ]]; then
+                    yum install -y iproute
+                elif [[ ${release} == "alpine" ]] || [[ -f /etc/alpine-release ]]; then
+                    apk add --no-cache iproute2-ss || apk add --no-cache iproute2
+                fi
+            fi
+        elif [[ "$cmd" == "gcompat" ]]; then
+            echo -e "${Info} Alpine 系统检测：正在安装 glibc 兼容运行库 (gcompat / libc6-compat / libstdc++ / libgcc)..."
+            apk add --no-cache gcompat libc6-compat libstdc++ libgcc
+            mkdir -p /lib64
+            [[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+        elif [[ "$cmd" == "coreutils" ]]; then
+            echo -e "${Info} Alpine 系统检测：正在安装 coreutils 工具包..."
+            apk add --no-cache coreutils
+        elif ! command -v "$cmd" &> /dev/null; then
             echo -e "${Error} 缺少依赖: $cmd，正在尝试安装..."
             if [[ -f /etc/debian_version ]]; then
                 apt-get update && apt-get install -y "$cmd"
             elif [[ -f /etc/redhat-release ]]; then
                 yum install -y "$cmd"
+            elif [[ ${release} == "alpine" ]] || [[ -f /etc/alpine-release ]]; then
+                apk add --no-cache "$cmd"
             else
                 echo -e "${Error} 不支持的系统，无法自动安装 $cmd"
                 exit 1
@@ -76,13 +215,18 @@ installDependencies(){
 	if [[ ${release} == "centos" ]]; then
 		yum update
 		yum install gzip wget curl unzip -y
+	elif [[ ${release} == "alpine" ]]; then
+		apk update
+		apk add --no-cache bash gzip wget curl unzip coreutils iproute2-ss gcompat libc6-compat libstdc++ libgcc ca-certificates tzdata openrc
+		mkdir -p /lib64
+		[[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 	else
 		apt-get update
 		apt-get install gzip wget curl unzip -y
 	fi
-	sysctl -w net.core.rmem_max=26214400
-	sysctl -w net.core.rmem_default=26214400
-	\cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+	sysctl -w net.core.rmem_max=26214400 2>/dev/null
+	sysctl -w net.core.rmem_default=26214400 2>/dev/null
+	[[ -f /usr/share/zoneinfo/Asia/Shanghai ]] && \cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 2>/dev/null
 	echo -e "${Info} 依赖安装完成"
 }
 
@@ -103,8 +247,8 @@ sysArch() {
 # 开启 TCP Fast Open
 enableTCPFastOpen() {
 	kernel=$(uname -r | awk -F . '{print $1}')
-	if [ "$kernel" -ge 3 ]; then
-		echo 3 >/proc/sys/net/ipv4/tcp_fastopen
+	if [ "$kernel" -ge 3 ] 2>/dev/null; then
+		echo 3 >/proc/sys/net/ipv4/tcp_fastopen 2>/dev/null
 		# 创建或覆盖 Snell 专用的 sysctl 配置文件
 		cat > "$sysctl_conf" << EOF
 # Snell Server 网络优化配置
@@ -136,8 +280,12 @@ net.ipv4.tcp_ecn = 1
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 EOF
-		# 应用配置
-		sysctl --system >/dev/null 2>&1
+		# 应用配置 (兼顾 GNU sysctl --system 与 BusyBox sysctl -p)
+		if sysctl --help 2>&1 | grep -q -- '--system'; then
+			sysctl --system >/dev/null 2>&1
+		else
+			sysctl -p "$sysctl_conf" >/dev/null 2>&1
+		fi
 		echo -e "${Info} TCP Fast Open 和网络优化配置已启用！"
 	else
 		echo -e "${Error} 系统内核版本过低，无法支持 TCP Fast Open！"
@@ -151,10 +299,53 @@ checkInstalledStatus(){
 
 # 检查 Snell 运行状态
 checkStatus(){
-    if systemctl is-active snell-server.service &> /dev/null; then
-        status="running"
+    if [[ "$service_type" == "openrc" ]]; then
+        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+            status="running"
+        else
+            status="stopped"
+        fi
+    elif command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active snell-server.service &> /dev/null; then
+            status="running"
+        elif pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+            status="running"
+        else
+            status="stopped"
+        fi
     else
-        status="stopped"
+        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+            status="running"
+        else
+            status="stopped"
+        fi
+    fi
+}
+
+# 版本排序辅助函数 (优先 GNU sort -V，BusyBox 环境下自动 awk 降级排序)
+versionSortHead(){
+    local v1="$1"
+    local v2="$2"
+    if printf '%s\n%s\n' "$v1" "$v2" | sort -V >/dev/null 2>&1; then
+        printf '%s\n%s\n' "$v1" "$v2" | sort -V | head -1
+    else
+        awk -v a="$v1" -v b="$v2" 'BEGIN {
+            n1 = split(a, arr1, "[.-]")
+            n2 = split(b, arr2, "[.-]")
+            m = (n1 > n2) ? n1 : n2
+            for (i = 1; i <= m; i++) {
+                p1 = (i in arr1) ? arr1[i] : 0
+                p2 = (i in arr2) ? arr2[i] : 0
+                if (p1 ~ /^[0-9]+$/ && p2 ~ /^[0-9]+$/) {
+                    if (p1 + 0 < p2 + 0) { print a; exit }
+                    if (p1 + 0 > p2 + 0) { print b; exit }
+                } else {
+                    if (p1 < p2) { print a; exit }
+                    if (p1 > p2) { print b; exit }
+                }
+            }
+            print a
+        }'
     fi
 }
 
@@ -191,16 +382,16 @@ compareVersions(){
             return 0  # version1 > version2(正式版优先)
         fi
 
-        # 如果都是测试版或都是正式版，使用 sort -V 比较
-        if printf '%s\n' "$version1" "$version2" | sort -V | head -1 | grep -q "^$version1$"; then
+        # 如果都是测试版或都是正式版，比较版本号
+        if [[ "$(versionSortHead "$version1" "$version2")" == "$version1" ]]; then
             return 2
         else
             return 0
         fi
     fi
 
-    # 基础版本号不同时，使用 sort -V 进行版本号比较
-    if printf '%s\n' "$base_version1" "$base_version2" | sort -V | head -1 | grep -q "^$base_version1$"; then
+    # 基础版本号不同时，比较基础版本号
+    if [[ "$(versionSortHead "$base_version1" "$base_version2")" == "$base_version1" ]]; then
         return 2  # version1 < version2
     else
         return 0  # version1 > version2
@@ -499,7 +690,33 @@ ${Green_font_prefix} 2.${Font_color_suffix} v2  ${Green_font_prefix} 3.${Font_co
 
 # 配置服务
 setupService(){
-	echo '
+	if [[ "$service_type" == "openrc" ]]; then
+		cat > /etc/init.d/snell-server << 'EOF'
+#!/sbin/openrc-run
+
+name="snell-server"
+description="Snell Server Service"
+supervisor=supervise-daemon
+command="/usr/local/bin/snell-server"
+command_args="-c /etc/snell/config.conf"
+output_log="/var/log/snell-server.log"
+error_log="/var/log/snell-server.err"
+respawn_delay=5
+respawn_max=0
+rc_ulimit="-n 32767"
+
+depend() {
+	need net
+	after firewall
+}
+EOF
+		chmod +x /etc/init.d/snell-server
+		if command -v rc-update >/dev/null 2>&1; then
+			rc-update add snell-server default >/dev/null 2>&1
+		fi
+		echo -e "${Info} Snell Server OpenRC 服务配置完成！"
+	else
+		echo '
 [Unit]
 Description=Snell Service
 After=network.target
@@ -512,9 +729,10 @@ RestartSec=5s
 ExecStart=/usr/local/bin/snell-server -c /etc/snell/config.conf
 [Install]
 WantedBy=multi-user.target' > /etc/systemd/system/snell-server.service
-	systemctl daemon-reload
-	systemctl enable snell-server
-	echo -e "${Info} Snell Server 服务配置完成！"
+		systemctl daemon-reload
+		systemctl enable snell-server
+		echo -e "${Info} Snell Server 服务配置完成！"
+	fi
 }
 
 
@@ -2188,15 +2406,20 @@ uninstallSnell(){
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
 		echo -e "${Info} 停止并禁用服务..."
-		systemctl stop snell-server
-		systemctl disable snell-server
+		if [[ "$service_type" == "openrc" ]] || [[ -f /etc/init.d/snell-server ]]; then
+			rc-service snell-server stop 2>/dev/null
+			rc-update del snell-server default 2>/dev/null
+			rm -f /etc/init.d/snell-server
+		fi
+		if [[ -f /etc/systemd/system/snell-server.service ]]; then
+			systemctl stop snell-server 2>/dev/null
+			systemctl disable snell-server 2>/dev/null
+			rm -f /etc/systemd/system/snell-server.service
+			systemctl daemon-reload 2>/dev/null
+		fi
 
 		echo -e "${Info} 移除主程序..."
 		rm -rf "${snell_bin}"
-
-		echo -e "${Info} 移除 systemd 服务文件..."
-		rm -f /etc/systemd/system/snell-server.service
-		systemctl daemon-reload
 
 		if [[ -f "${sysctl_conf}" ]]; then
 			echo -e "${Tip} 由于网络优化配置可能被其他程序共用，卸载过程未移除网络优化配置，如需彻底移除可手动删除：${sysctl_conf}"
@@ -2214,11 +2437,14 @@ uninstallSnell(){
 
 # 获取 IPv4 地址
 getIpv4(){
-	ipv4=$(wget -qO- -4 -t1 -T2 ipinfo.io/ip)
+	ipv4=$(wget -qO- -4 -t1 -T2 ipinfo.io/ip 2>/dev/null)
+	[[ -z "${ipv4}" ]] && ipv4=$(curl -s4 -m 2 ipinfo.io/ip 2>/dev/null)
 	if [[ -z "${ipv4}" ]]; then
-		ipv4=$(wget -qO- -4 -t1 -T2 api.ip.sb/ip)
+		ipv4=$(wget -qO- -4 -t1 -T2 api.ip.sb/ip 2>/dev/null)
+		[[ -z "${ipv4}" ]] && ipv4=$(curl -s4 -m 2 api.ip.sb/ip 2>/dev/null)
 		if [[ -z "${ipv4}" ]]; then
-			ipv4=$(wget -qO- -4 -t1 -T2 members.3322.org/dyndns/getip)
+			ipv4=$(wget -qO- -4 -t1 -T2 members.3322.org/dyndns/getip 2>/dev/null)
+			[[ -z "${ipv4}" ]] && ipv4=$(curl -s4 -m 2 members.3322.org/dyndns/getip 2>/dev/null)
 			if [[ -z "${ipv4}" ]]; then
 				ipv4="IPv4_Error"
 			fi
@@ -2228,9 +2454,11 @@ getIpv4(){
 
 # 获取 IPv6 地址
 getIpv6(){
-	ip6=$(wget -qO- -6 -t1 -T2 ifconfig.co)
+	ip6=$(wget -qO- -6 -t1 -T2 ifconfig.co 2>/dev/null)
+	[[ -z "${ip6}" ]] && ip6=$(curl -s6 -m 2 ifconfig.co 2>/dev/null)
 	if [[ -z "${ip6}" ]]; then
-		ip6="IPv6_Error"
+		ip6=$(curl -s6 -m 2 api64.ipify.org 2>/dev/null)
+		[[ -z "${ip6}" ]] && ip6="IPv6_Error"
 	fi
 }
 
@@ -2312,8 +2540,22 @@ viewConfig(){
 
 # 查看运行状态
 viewStatus(){
-    echo -e "${Info} 获取 Snell Server 活动日志 ……"
-    systemctl status snell-server --no-pager
+    echo -e "${Info} 获取 Snell Server 运行状态及活动日志 ……"
+    if [[ "$service_type" == "openrc" ]]; then
+        rc-service snell-server status
+        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+            echo -e " 进程详情:"
+            ps aux 2>/dev/null | grep "[s]nell-server" || ps 2>/dev/null | grep "[s]nell-server"
+        else
+            echo -e " 进程状态: ${Red_font_prefix}Snell 核心进程未运行！${Font_color_suffix}"
+            if [[ -s /var/log/snell-server.err ]]; then
+                echo -e "${Error} 错误日志 (/var/log/snell-server.err):"
+                tail -n 20 /var/log/snell-server.err
+            fi
+        fi
+    else
+        systemctl status snell-server --no-pager
+    fi
     echo
     read -n 1 -s -r -p "按任意键返回主菜单..."
     startMenu
@@ -2483,6 +2725,7 @@ startMenu(){
     checkRoot
     checkSys
     sysArch
+    initServiceMgr
     action=$1
 
     # 检查版本更新（在显示菜单前）
@@ -2642,6 +2885,10 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
 
 }
 
+
+checkSys
+sysArch
+initServiceMgr
 
 if [[ -n "$1" ]]; then
     # 如果参数是快捷菜单选项 (0-9 或 00)
