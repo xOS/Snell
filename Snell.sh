@@ -30,7 +30,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.1.3"
+sh_ver="2.1.4"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -125,7 +125,18 @@ initServiceMgr(){
                     fi
                     ;;
                 is-active)
-                    if pgrep -x "$sname" >/dev/null 2>&1 || pidof "$sname" >/dev/null 2>&1; then
+                    if command -v rc-service >/dev/null 2>&1; then
+                        if rc-service "$sname" status 2>/dev/null | grep -qi "started" || rc-service "$sname" status >/dev/null 2>&1; then
+                            return 0
+                        fi
+                    elif [[ -x "/etc/init.d/$sname" ]]; then
+                        if "/etc/init.d/$sname" status 2>/dev/null | grep -qi "started" || "/etc/init.d/$sname" status >/dev/null 2>&1; then
+                            return 0
+                        fi
+                    fi
+                    if pgrep -f "$sname" >/dev/null 2>&1 || pgrep -x "$sname" >/dev/null 2>&1 || pidof "$sname" >/dev/null 2>&1; then
+                        return 0
+                    elif (ps aux 2>/dev/null; ps 2>/dev/null) | grep -v "grep" | grep -v "\.sh" | grep -q "$sname"; then
                         return 0
                     else
                         return 1
@@ -150,7 +161,11 @@ initServiceMgr(){
 
         if ! command -v journalctl >/dev/null 2>&1; then
             journalctl() {
-                if [[ -f /var/log/messages ]]; then
+                if [[ -s /var/log/snell-server.err ]]; then
+                    tail -n 20 /var/log/snell-server.err
+                elif [[ -s /var/log/snell-server.log ]]; then
+                    tail -n 20 /var/log/snell-server.log
+                elif [[ -f /var/log/messages ]]; then
                     grep -i "snell" /var/log/messages 2>/dev/null | tail -n 20
                 fi
             }
@@ -184,7 +199,9 @@ checkDependencies(){
             echo -e "${Info} Alpine 精简依赖：正在补充 Snell 运行库 (gcompat / libstdc++)..."
             apk add --no-cache gcompat libstdc++
             mkdir -p /lib64
-            [[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+            for f in /lib/ld-linux*.so*; do
+                [[ -e "$f" ]] && ln -sf "$f" "/lib64/$(basename "$f")" 2>/dev/null
+            done
         elif ! command -v "$cmd" &> /dev/null; then
             echo -e "${Error} 缺少依赖: $cmd，正在尝试安装..."
             if [[ -f /etc/debian_version ]]; then
@@ -211,7 +228,9 @@ installDependencies(){
 		apk update
 		apk add --no-cache bash curl unzip gcompat libstdc++
 		mkdir -p /lib64
-		[[ ! -e /lib64/ld-linux-x86-64.so.2 && -e /lib/ld-linux-x86-64.so.2 ]] && ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+		for f in /lib/ld-linux*.so*; do
+			[[ -e "$f" ]] && ln -sf "$f" "/lib64/$(basename "$f")" 2>/dev/null
+		done
 	else
 		apt-get update
 		apt-get install gzip wget curl unzip -y
@@ -291,26 +310,27 @@ checkInstalledStatus(){
 
 # 检查 Snell 运行状态
 checkStatus(){
+    status="stopped"
     if [[ "$service_type" == "openrc" ]]; then
-        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+        if (command -v rc-service >/dev/null 2>&1 && rc-service snell-server status 2>/dev/null | grep -qi "started") || \
+           (command -v rc-service >/dev/null 2>&1 && rc-service snell-server status >/dev/null 2>&1) || \
+           ([[ -x "/etc/init.d/snell-server" ]] && /etc/init.d/snell-server status 2>/dev/null | grep -qi "started"); then
             status="running"
-        else
-            status="stopped"
+            return 0
         fi
     elif command -v systemctl >/dev/null 2>&1; then
         if systemctl is-active snell-server.service &> /dev/null; then
             status="running"
-        elif pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
-            status="running"
-        else
-            status="stopped"
+            return 0
         fi
-    else
-        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
-            status="running"
-        else
-            status="stopped"
-        fi
+    fi
+
+    # 进程级兜底检测（兼容 Alpine BusyBox、gcompat 以及手动运行场景）
+    if pgrep -f "snell-server" >/dev/null 2>&1 || \
+       pgrep -x "snell-server" >/dev/null 2>&1 || \
+       pidof snell-server >/dev/null 2>&1 || \
+       ((ps aux 2>/dev/null; ps 2>/dev/null) | grep -v "grep" | grep -v "\.sh" | grep -q "snell-server"); then
+        status="running"
     fi
 }
 
@@ -2543,9 +2563,19 @@ viewStatus(){
     echo -e "${Info} 获取 Snell Server 运行状态及活动日志 ……"
     if [[ "$service_type" == "openrc" ]]; then
         rc-service snell-server status
-        if pgrep -x snell-server >/dev/null 2>&1 || pidof snell-server >/dev/null 2>&1; then
+        if (command -v rc-service >/dev/null 2>&1 && rc-service snell-server status 2>/dev/null | grep -qi "started") || \
+           (command -v rc-service >/dev/null 2>&1 && rc-service snell-server status >/dev/null 2>&1) || \
+           ([[ -x "/etc/init.d/snell-server" ]] && /etc/init.d/snell-server status 2>/dev/null | grep -qi "started") || \
+           pgrep -f "snell-server" >/dev/null 2>&1 || \
+           pgrep -x "snell-server" >/dev/null 2>&1 || \
+           pidof snell-server >/dev/null 2>&1 || \
+           ((ps aux 2>/dev/null; ps 2>/dev/null) | grep -v "grep" | grep -v "\.sh" | grep -q "snell-server"); then
             echo -e " 进程详情:"
-            ps aux 2>/dev/null | grep "[s]nell-server" || ps 2>/dev/null | grep "[s]nell-server"
+            (ps aux 2>/dev/null; ps 2>/dev/null) | grep -v "grep" | grep -v "\.sh" | grep "snell-server" | head -n 1
+            if [[ -s /var/log/snell-server.log ]]; then
+                echo -e " 活动日志 (/var/log/snell-server.log):"
+                tail -n 10 /var/log/snell-server.log
+            fi
         else
             echo -e " 进程状态: ${Red_font_prefix}Snell 核心进程未运行！${Font_color_suffix}"
             if [[ -s /var/log/snell-server.err ]]; then
