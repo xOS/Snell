@@ -30,7 +30,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.1.5"
+sh_ver="2.1.6"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -332,6 +332,118 @@ checkStatus(){
        ((ps aux 2>/dev/null; ps 2>/dev/null) | grep -v "grep" | grep -v "\.sh" | grep -q "snell-server"); then
         status="running"
     fi
+}
+
+# 菜单单独读取服务的细分状态，不改变启动/更新流程的 running 判断。
+getMenuServiceState(){
+    local info key value load="" active="" sub="" result
+    if [[ "$service_type" == openrc ]]; then
+        if command -v rc-service >/dev/null 2>&1; then
+            info=$(LC_ALL=C rc-service -C snell-server status 2>&1); result=$?
+        elif [[ -x /etc/init.d/snell-server ]]; then
+            info=$(LC_ALL=C /etc/init.d/snell-server status 2>&1); result=$?
+        else
+            printf 'not-found\n'
+            return
+        fi
+        case "$info" in
+            *crashed*) printf 'crashed\n'; return ;;
+            *failed*) printf 'failed\n'; return ;;
+            *starting*) printf 'starting\n'; return ;;
+            *stopping*) printf 'stopping\n'; return ;;
+            *inactive*) printf 'inactive\n'; return ;;
+            *stopped*|*"not started"*|*"not running"*) printf 'stopped\n'; return ;;
+            *"does not exist"*|*"not found"*) printf 'not-found\n'; return ;;
+            *started*) printf 'running\n'; return ;;
+        esac
+        [[ "$result" == 0 ]] && { printf 'running\n'; return; }
+    elif command -v systemctl >/dev/null 2>&1; then
+        info=$(systemctl show snell-server.service --property=LoadState --property=ActiveState --property=SubState 2>/dev/null)
+        while IFS='=' read -r key value; do
+            case "$key" in
+                LoadState) load="$value" ;;
+                ActiveState) active="$value" ;;
+                SubState) sub="$value" ;;
+            esac
+        done <<< "$info"
+        case "$load" in
+            error|bad-setting) printf 'load-error\n'; return ;;
+            masked) printf 'masked\n'; return ;;
+            not-found)
+                checkStatus
+                if [[ "$status" == running ]]; then printf 'manual\n'; else printf 'not-found\n'; fi
+                return ;;
+        esac
+        [[ "$active" == failed ]] && { printf 'failed\n'; return; }
+        case "$sub" in
+            auto-restart*) printf 'restarting\n'; return ;;
+            exited) printf 'exited\n'; return ;;
+        esac
+        case "$active" in
+            active) printf 'running\n'; return ;;
+            inactive)
+                checkStatus
+                if [[ "$status" == running ]]; then printf 'manual\n'; else printf 'stopped\n'; fi
+                return ;;
+            activating) printf 'starting\n'; return ;;
+            deactivating) printf 'stopping\n'; return ;;
+            failed|reloading|refreshing|maintenance) printf '%s\n' "$active"; return ;;
+            ?*) printf '%s\n' "$active"; return ;;
+        esac
+    fi
+    checkStatus
+    if [[ "$status" == running ]]; then printf 'manual\n'; else printf 'unknown\n'; fi
+}
+
+# 正常用绿、过渡/待处理用黄、故障用红；未知新状态仍保留原始名称。
+showStatusBadge(){
+    local state="$1" color="$Yellow_font_prefix" label
+    case "$state" in
+        installed) color="$Green_font_prefix"; label="已安装" ;;
+        running) color="$Green_font_prefix"; label="已启动" ;;
+        stopped) label="已停止" ;;
+        inactive) label="未激活" ;;
+        starting) label="启动中" ;;
+        stopping) label="停止中" ;;
+        restarting) label="自动重启中" ;;
+        reloading) label="重载中" ;;
+        refreshing) label="刷新中" ;;
+        maintenance) label="维护中" ;;
+        exited) label="服务已退出" ;;
+        masked) label="服务已屏蔽" ;;
+        not-found) label="服务未配置" ;;
+        manual) label="手动运行" ;;
+        unknown) label="状态未知" ;;
+        failed) color="$Red_font_prefix"; label="运行失败" ;;
+        crashed) color="$Red_font_prefix"; label="进程异常退出" ;;
+        load-error) color="$Red_font_prefix"; label="服务配置错误" ;;
+        config-missing) color="$Red_font_prefix"; label="配置文件缺失" ;;
+        binary-not-executable) color="$Red_font_prefix"; label="程序不可执行" ;;
+        not-installed) color="$Red_font_prefix"; label="未安装" ;;
+        *) label="状态未知（$state）" ;;
+    esac
+    printf '%b● %s%b' "$color" "$label" "$Font_color_suffix"
+}
+
+showCurrentStatus(){
+    local state display_version
+    printf ' 当前状态: '
+    if [[ ! -e "$snell_bin" ]]; then
+        showStatusBadge not-installed
+    else
+        showStatusBadge installed
+        display_version=$(normalizeSnellVersion "$(cat "$snell_version_file" 2>/dev/null)") || display_version="${current_ver:-未知}"
+        printf '%b[v%s]%b ' "$Yellow_font_prefix" "$display_version" "$Font_color_suffix"
+        if [[ ! -x "$snell_bin" ]]; then
+            showStatusBadge binary-not-executable
+        elif [[ ! -e "$snell_conf" ]]; then
+            showStatusBadge config-missing
+        else
+            state=$(getMenuServiceState)
+            showStatusBadge "$state"
+        fi
+    fi
+    printf '\n'
 }
 
 # 版本排序辅助函数 (优先 GNU sort -V，BusyBox 环境下自动 awk 降级排序)
@@ -2737,23 +2849,35 @@ beforeStartMenu() {
     startMenu
 }
 
-# 显示版本检查进度
+# 不确定耗时的检查使用往返动画，不显示虚假的百分比。
 showVersionCheckProgress(){
-    local check_duration=${1:-3}  # 检查预期耗时，默认3秒
-    echo -e "${Info} 正在检查 Snell 版本信息..."
-    echo -n "检查进度: "
-
-    # 根据检查时间动态调整进度条
-    local steps=30
-    local step_time=$(echo "scale=2; $check_duration / $steps" | bc 2>/dev/null || echo "0.1")
-
-    for i in $(seq 1 $steps); do
-        echo -n -e "${Green_font_prefix}█${Font_color_suffix}"
-        sleep $step_time
+    local label=${1:-检查版本更新} frame=0 started_at=$SECONDS elapsed
+    local columns=${COLUMNS:-} width=24 highlight=5 travel position i bar
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    [[ "$columns" =~ ^[0-9]+$ ]] || columns=$(tput cols 2>/dev/null)
+    [[ "$columns" =~ ^[0-9]+$ ]] || columns=80
+    [[ "$columns" -lt 54 ]] && width=$((columns - 30))
+    [[ "$width" -lt 8 ]] && width=8
+    travel=$((width - highlight))
+    trap 'exit 0' TERM INT
+    while kill -0 "$$" 2>/dev/null; do
+        position=$((frame % (travel * 2)))
+        [[ "$position" -gt "$travel" ]] && position=$((travel * 2 - position))
+        bar=""
+        for ((i=0; i<width; i++)); do
+            if [[ "$i" -ge "$position" && "$i" -lt $((position + highlight)) ]]; then
+                bar+="${Green_font_prefix}█"
+            else
+                bar+="\033[90m░"
+            fi
+        done
+        elapsed=$((SECONDS - started_at))
+        printf '\r\033[2K  %b%s%b %s  [%b%b]  %b%02ds%b' \
+            "$Green_font_prefix" "${frames[frame % ${#frames[@]}]}" "$Font_color_suffix" \
+            "$label" "$bar" "$Font_color_suffix" "$Yellow_font_prefix" "$elapsed" "$Font_color_suffix"
+        sleep 0.12
+        ((frame++))
     done
-    echo -e " ${Green_font_prefix}完成${Font_color_suffix}"
-    echo -e "${Info} 版本检查完成，正在加载主菜单..."
-    sleep 0.3
 }
 
 # 检查是否需要进行版本检查
@@ -2801,45 +2925,34 @@ shouldCheckVersion(){
     return 1  # 不需要检查
 }
 
-# 检查版本更新（带进度显示）
+# 检查仍在当前进程执行，保留更新结果；后台动画仅负责显示。
 checkVersionUpdateWithProgress(){
-    # 先检查是否需要进行版本检查
-    if shouldCheckVersion; then
-        echo -e "${Info} 正在检查 Snell 版本信息..."
-
-        # 显示绿色进度条
-        (
-            echo -n "检查进度: "
-            for i in {1..30}; do
-                echo -n -e "${Green_font_prefix}█${Font_color_suffix}"
-                sleep 0.1
-            done
-            echo -e " ${Green_font_prefix}完成${Font_color_suffix}"
-        ) &
+    [[ -e "$snell_bin" && -e "$snell_conf" ]] || return 0
+    local label="核对版本信息" progress_pid="" message="版本检查结束"
+    shouldCheckVersion && label="检查版本更新"
+    if [[ -t 1 && "${TERM:-dumb}" != dumb ]]; then
+        showVersionCheckProgress "$label" &
         progress_pid=$!
-
-        # 在后台进行版本检查
-        updateBuiltinVersions false >/dev/null 2>&1
-        checkVersionUpdate false >/dev/null 2>&1
-
-        # 等待进度条完成
-        wait $progress_pid
-
-        echo -e "${Info} 版本检查完成，正在加载主菜单..."
-        sleep 0.5
-        clear
     else
-        # 静默进行版本检查（使用缓存）
-        if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
-            updateBuiltinVersions false >/dev/null 2>&1
-            checkVersionUpdate false >/dev/null 2>&1
-        fi
+        echo -e "${Info} 正在${label}..."
     fi
+
+    updateBuiltinVersions false >/dev/null 2>&1
+    checkVersionUpdate false >/dev/null 2>&1
+
+    if [[ -n "$progress_pid" ]]; then
+        kill "$progress_pid" 2>/dev/null
+        wait "$progress_pid" 2>/dev/null
+        printf '\r\033[2K'
+    fi
+    [[ "$update_available" == true ]] && message="发现新版本 v${latest_available_version}"
+    printf '  %b●%b %s\n' "$Green_font_prefix" "$Font_color_suffix" "$message"
 }
 
 # 主菜单
 startMenu(){
     clear
+    echo -e "${Info} 正在加载 Snell 管理菜单..."
     checkRoot
     checkSys
     sysArch
@@ -2876,6 +2989,7 @@ startMenu(){
         fi
     fi
 
+    clear
     echo && echo -e "
 ==============================
 Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
@@ -2931,16 +3045,7 @@ Snell Server 管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
     fi
 
     echo "==============================" && echo
-    if [[ -e ${snell_bin} ]]; then
-        checkStatus
-        if [[ "$status" == "running" ]]; then
-            echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}且${Green_font_prefix}已启动${Font_color_suffix}"
-        else
-            echo -e " 当前状态: ${Green_font_prefix}已安装${Yellow_font_prefix}[v$(cat ${snell_conf}|grep 'version = '|awk -F 'version = ' '{print $NF}')]${Font_color_suffix}但${Red_font_prefix}未启动${Font_color_suffix}"
-        fi
-    else
-        echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
-    fi
+    showCurrentStatus
     echo
 
     if [[ -n "$action" ]]; then
