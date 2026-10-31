@@ -30,7 +30,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.1.7"
+sh_ver="2.1.8"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -422,7 +422,8 @@ showStatusBadge(){
         not-installed) color="$Red_font_prefix"; label="未安装" ;;
         *) label="状态未知（$state）" ;;
     esac
-    printf '%b• %s%b' "$color" "$label" "$Font_color_suffix"
+    # U+23FA + U+FE0E 使用文本圆点，避免彩色图标替代。
+    printf '%b⏺︎ %s%b' "$color" "$label" "$Font_color_suffix"
 }
 
 showCurrentStatus(){
@@ -2928,8 +2929,8 @@ shouldCheckVersion(){
 # 检查仍在当前进程执行，保留更新结果；后台动画仅负责显示。
 checkVersionUpdateWithProgress(){
     [[ -e "$snell_bin" && -e "$snell_conf" ]] || return 0
-    local label="核对版本信息" progress_pid="" message="版本检查结束"
-    shouldCheckVersion && label="检查版本更新"
+    local label="更新检查" progress_pid="" message="更新检查结束"
+    shouldCheckVersion && label="检查更新"
     if [[ -t 1 && "${TERM:-dumb}" != dumb ]]; then
         showVersionCheckProgress "$label" &
         progress_pid=$!
@@ -2946,7 +2947,7 @@ checkVersionUpdateWithProgress(){
         printf '\r\033[2K'
     fi
     [[ "$update_available" == true ]] && message="发现新版本 v${latest_available_version}"
-    printf '  %b•%b %s\n' "$Green_font_prefix" "$Font_color_suffix" "$message"
+    printf '  %b⏺︎%b %s\n' "$Green_font_prefix" "$Font_color_suffix" "$message"
 }
 
 # 主菜单
