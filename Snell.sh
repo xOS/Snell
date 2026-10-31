@@ -30,7 +30,7 @@ export PATH
 #	WebSite: https://aapls.com
 #=================================================
 
-sh_ver="2.1.4"
+sh_ver="2.1.5"
 snell_v2_version="2.0.6"
 snell_v3_version="3.0.1"
 snell_v4_version="4.1.1"
@@ -361,66 +361,114 @@ versionSortHead(){
     fi
 }
 
-# 版本号比较函数（优先正式版）
-compareVersions(){
-    local version1="$1"
-    local version2="$2"
-
-    # 移除版本号前缀 v
-    version1=$(echo "$version1" | sed 's/^v//')
-    version2=$(echo "$version2" | sed 's/^v//')
-
-    # 如果版本号完全相同
-    if [[ "$version1" == "$version2" ]]; then
-        return 1  # 相等
-    fi
-
-    # 提取基础版本号（去除测试版后缀）
-    local base_version1=$(echo "$version1" | sed 's/[a-z].*//')
-    local base_version2=$(echo "$version2" | sed 's/[a-z].*//')
-
-    # 检查是否为测试版
-    local is_beta1=false
-    local is_beta2=false
-    [[ "$version1" =~ [a-z] ]] && is_beta1=true
-    [[ "$version2" =~ [a-z] ]] && is_beta2=true
-
-    # 如果基础版本号相同
-    if [[ "$base_version1" == "$base_version2" ]]; then
-        # 优先选择正式版
-        if [[ "$is_beta1" == true && "$is_beta2" == false ]]; then
-            return 2  # version1 < version2(正式版优先)
-        elif [[ "$is_beta1" == false && "$is_beta2" == true ]]; then
-            return 0  # version1 > version2(正式版优先)
-        fi
-
-        # 如果都是测试版或都是正式版，比较版本号
-        if [[ "$(versionSortHead "$version1" "$version2")" == "$version1" ]]; then
-            return 2
-        else
-            return 0
-        fi
-    fi
-
-    # 基础版本号不同时，比较基础版本号
-    if [[ "$(versionSortHead "$base_version1" "$base_version2")" == "$base_version1" ]]; then
-        return 2  # version1 < version2
-    else
-        return 0  # version1 > version2
-    fi
+# 校验完整版本标签，保留下载文件名和版本记录中的预发布后缀。
+normalizeSnellVersion(){
+    local version
+    version=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' |
+        sed -E 's/^[[:space:]]*v//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-?(alpha|beta|rc|a|b)(\.?[0-9]+)?)?$ ]] || return 1
+    printf '%s\n' "$version"
 }
 
-# 验证版本 URL 是否有效
-validateVersionUrl(){
-    local version="$1"
-    getSnellDownloadUrl "$version"
+# 沿用返回值：0 大于，1 相等，2 小于；格式无效返回 3。
+compareVersions(){
+    local version1 version2
+    version1=$(normalizeSnellVersion "$1") || return 3
+    version2=$(normalizeSnellVersion "$2") || return 3
+    awk -v a="$version1" -v b="$version2" 'BEGIN {
+        split(a, x, "."); split(b, y, ".")
+        for (i = 1; i <= 3; i++) {
+            if (x[i] + 0 > y[i] + 0) exit 0
+            if (x[i] + 0 < y[i] + 0) exit 2
+        }
+        sub(/^[0-9]+\.[0-9]+\.[0-9]+/, "", a)
+        sub(/^[0-9]+\.[0-9]+\.[0-9]+/, "", b)
+        gsub(/[-.]/, "", a); gsub(/[-.]/, "", b)
+        ra = (a == "" ? 4 : a ~ /^rc/ ? 3 : a ~ /^b/ ? 2 : 1)
+        rb = (b == "" ? 4 : b ~ /^rc/ ? 3 : b ~ /^b/ ? 2 : 1)
+        if (ra > rb) exit 0
+        if (ra < rb) exit 2
+        sub(/^[a-z]+/, "", a); sub(/^[a-z]+/, "", b)
+        if (a + 0 > b + 0) exit 0
+        if (a + 0 < b + 0) exit 2
+        exit 1
+    }'
+}
 
-    # 使用 HEAD 请求检查 URL 是否有效
-    if curl -I -s --max-time 10 "$snell_url" | head -1 | grep -qE "200 OK|HTTP/2 200|HTTP/[0-9.]+ 200"; then
-        return 0  # URL 有效
-    else
-        return 1  # URL 无效
+# 二进制替换成功后保存实际版本，完整保留 beta/rc 后缀。
+saveInstalledVersion(){
+    local version temp_file
+    version=$(normalizeSnellVersion "$1") || return 1
+    mkdir -p "${snell_version_file%/*}" || return 1
+    temp_file=$(mktemp "${snell_version_file}.XXXXXX") || return 1
+    if printf 'v%s\n' "$version" > "$temp_file" &&
+        mv -f "$temp_file" "$snell_version_file"; then
+        return 0
     fi
+    rm -f "$temp_file"
+    return 1
+}
+
+# 捕获最终 HTTP 状态和 curl 错误，检查与实际下载共用同一报错逻辑。
+requestSnellUrl(){
+    local url="$1" output="$2" method=${3:-download} error_file code result detail
+    snell_http_code=""
+    snell_download_url="$url"
+    snell_download_error="无法创建网络错误日志临时文件，请检查权限和磁盘空间。"
+    error_file=$(mktemp) || return 1
+    local args=(-fsSL --connect-timeout 5 -o "$output" -w '%{http_code}')
+    if [[ "$method" == download ]]; then args+=(--max-time 120); else args+=(--max-time 15); fi
+    [[ "$method" == head ]] && args+=(-I)
+    [[ "$method" == range ]] && args+=(--range 0-0 --max-filesize 1)
+    code=$(curl "${args[@]}" "$url" 2>"$error_file")
+    result=$?
+    detail=$(cat "$error_file")
+    rm -f "$error_file"
+    snell_http_code="$code"
+    snell_download_url="$url"
+    snell_download_error=""
+    if [[ "$code" =~ ^2[0-9][0-9]$ ]] &&
+        { [[ "$result" == 0 ]] || [[ "$method" == range && "$result" == 63 ]]; }; then
+        return 0
+    fi
+    case "$code" in
+        404) snell_download_error="HTTP 404：该版本或当前架构的下载文件不存在，请核对完整版本号。" ;;
+        403) snell_download_error="HTTP 403：下载服务器拒绝访问。" ;;
+        429) snell_download_error="HTTP 429：请求过于频繁，请稍后重试。" ;;
+        [45][0-9][0-9]) snell_download_error="HTTP ${code}：下载服务器返回错误。" ;;
+        *)
+            case "$result" in
+                6) snell_download_error="DNS 解析失败（curl 6）。" ;;
+                7) snell_download_error="无法连接下载服务器（curl 7）。" ;;
+                28) snell_download_error="请求超时（curl 28）。" ;;
+                35|60) snell_download_error="TLS 连接或证书校验失败（curl ${result}）。" ;;
+                23) snell_download_error="无法写入下载文件（curl 23），请检查权限和磁盘空间。" ;;
+                *) snell_download_error="请求失败（HTTP ${code:-000}，curl ${result}）。" ;;
+            esac
+            ;;
+    esac
+    [[ -n "$detail" ]] && snell_download_error="$snell_download_error $detail"
+    return 1
+}
+
+reportSnellDownloadError(){
+    echo -e "${Error} Snell v${1} 下载失败："
+    printf '  地址：%s\n  原因：%s\n' "$snell_download_url" "$snell_download_error"
+}
+
+# 默认静默检查；实际操作可传 true 显示具体失败详情。
+validateVersionUrl(){
+    local version="$1" show_error=${2:-false}
+    getSnellDownloadUrl "$version"
+    if requestSnellUrl "$snell_url" /dev/null head; then
+        return 0
+    fi
+    if [[ "$snell_http_code" == 405 || "$snell_http_code" == 501 ]] &&
+        requestSnellUrl "$snell_url" /dev/null range; then
+        return 0
+    fi
+    [[ "$show_error" == true ]] && reportSnellDownloadError "$version"
+    return 1
 }
 
 # 检查版本更新
@@ -434,15 +482,12 @@ checkVersionUpdate(){
 
     # 优先检查是否是命令行指定版本
     if [[ -n "$TARGET_UPDATE_VERSION" ]]; then
+        current_installed_version=$(normalizeSnellVersion "$(cat "${snell_version_file}" 2>/dev/null)") || return 1
         update_available=true
         best_version="$TARGET_UPDATE_VERSION"
         latest_available_version="$TARGET_UPDATE_VERSION"
         version_source="命令行指定"
 
-        # 仍然获取一下当前版本号用于显示
-        if [[ -e ${snell_version_file} ]]; then
-            current_installed_version=$(cat ${snell_version_file} | sed 's/^v//')
-        fi
         return 0
     fi
 
@@ -456,23 +501,8 @@ checkVersionUpdate(){
         fi
 
         if [[ -e ${snell_version_file} ]]; then
-            installed_version=$(cat ${snell_version_file} | sed 's/^v//')
-
-            # 尝试从二进制程序获取真实版本 (容错处理)
-            if command -v timeout >/dev/null 2>&1 && [[ -x ${snell_bin} ]]; then
-                bin_version=$(timeout 1 ${snell_bin} --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[-_ ]?[a-zA-Z0-9]*' | sed 's/[-_ ]//g' | head -1)
-                [[ -z "$bin_version" ]] && bin_version=$(timeout 1 ${snell_bin} -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[-_ ]?[a-zA-Z0-9]*' | sed 's/[-_ ]//g' | head -1)
-                [[ -z "$bin_version" ]] && bin_version=$(timeout 1 ${snell_bin} --help 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[-_ ]?[a-zA-Z0-9]*' | sed 's/[-_ ]//g' | head -1)
-
-                if [[ -n "$bin_version" && "$bin_version" != "$installed_version" ]]; then
-                    # 只有当基础版本号真的不一致时，或者获取到的版本比保存的版本更详细时才覆盖
-                    # 防止因为二进制不输出 rc 等后缀导致缓存的带后缀版本被降级抹除
-                    if [[ "$installed_version" != "$bin_version"* ]]; then
-                        installed_version="$bin_version"
-                        echo "v${installed_version}" > "${snell_version_file}" # 修复不同步的问题
-                    fi
-                fi
-            fi
+            # 以安装/更新时保存的完整版本为准，检查更新不改写记录。
+            installed_version=$(normalizeSnellVersion "$(cat "${snell_version_file}")") || return 1
 
             current_installed_version="$installed_version"
 
@@ -562,44 +592,79 @@ getSnellDownloadUrl(){
 
 # 下载并安装 Snell v2
 downloadSnellV2() {
-    downloadSnellFromGitHub "${snell_v2_version}" "Snell v2 GitHub 备份源版" || downloadSnellFromGitee "${snell_v2_version}" "Snell v2 Gitee 备份源版"
+    local version="${1:-$snell_v2_version}"
+    downloadSnellFromGitHub "$version" "Snell v2 GitHub 备份源版" || downloadSnellFromGitee "$version" "Snell v2 Gitee 备份源版"
 }
 
 # 下载并安装 Snell v3
 downloadSnellV3() {
-    downloadSnellFromGitHub "${snell_v3_version}" "Snell v3 GitHub 备份源版" || downloadSnellFromGitee "${snell_v3_version}" "Snell v3 Gitee 备份源版"
+    local version="${1:-$snell_v3_version}"
+    downloadSnellFromGitHub "$version" "Snell v3 GitHub 备份源版" || downloadSnellFromGitee "$version" "Snell v3 Gitee 备份源版"
+}
+
+# 解压和替换均在临时目录中准备，失败时不使用工作目录中的旧文件。
+installSnellArchive(){
+    local version="$1" url="$2" temp_dir previous=false
+    temp_dir=$(mktemp -d) || { echo -e "${Error} 无法创建下载临时目录。"; return 1; }
+    if ! requestSnellUrl "$url" "$temp_dir/snell.zip"; then
+        reportSnellDownloadError "$version"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    if ! unzip -o "$temp_dir/snell.zip" -d "$temp_dir" >"$temp_dir/unzip.log" 2>&1 ||
+        [[ ! -s "$temp_dir/snell-server" ]]; then
+        echo -e "${Error} Snell v${version} 解压失败，下载内容不是有效的 Snell 安装包："
+        printf '  地址：%s\n' "$url"
+        cat "$temp_dir/unzip.log"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    if [[ -e "$snell_bin" ]]; then
+        if ! cp -p "$snell_bin" "$temp_dir/previous" 2>"$temp_dir/install.log"; then
+            echo -e "${Error} 无法保存原程序，已取消替换："
+            cat "$temp_dir/install.log"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        previous=true
+    fi
+    if ! { chmod +x "$temp_dir/snell-server" && mv -f "$temp_dir/snell-server" "$snell_bin"; } 2>"$temp_dir/install.log"; then
+        echo -e "${Error} Snell v${version} 程序替换失败："
+        cat "$temp_dir/install.log"
+        if [[ "$previous" == true ]]; then
+            cp -p "$temp_dir/previous" "$snell_bin" || {
+                echo -e "${Error} 原程序恢复失败，临时备份保留在 $temp_dir/previous。"
+                return 1
+            }
+        else
+            rm -f "$snell_bin"
+        fi
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    if ! saveInstalledVersion "$version"; then
+        echo -e "${Error} 无法保存完整版本号，正在恢复原程序。"
+        if [[ "$previous" == true ]]; then
+            cp -p "$temp_dir/previous" "$snell_bin" || {
+                echo -e "${Error} 原程序恢复失败，临时备份保留在 $temp_dir/previous。"
+                return 1
+            }
+        else
+            rm -f "$snell_bin"
+        fi
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    rm -rf "$temp_dir"
+    echo -e "${Info} Snell Server v${version} 主程序下载安装完毕！"
 }
 
 # 通用下载并安装 Snell 函数（第三方备份源）
 downloadSnellFromBackup(){
-    local version=$1
-    local version_type=$2
-    local backup_url=$3
-
-    echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -sSL -o "snell-server-v${version}-linux-${arch}.zip" "${backup_url}"
-    else
-        wget --no-check-certificate -O "snell-server-v${version}-linux-${arch}.zip" "${backup_url}"
-    fi
-    if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
-        echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
-        return 1
-    fi
-
-    unzip -o "snell-server-v${version}-linux-${arch}.zip"
-    if [[ ! -e "snell-server" ]]; then
-        echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 解压失败！"
-        return 1
-    fi
-
-    rm -rf "snell-server-v${version}-linux-${arch}.zip"
-    chmod +x snell-server
-    mv -f snell-server "${snell_bin}"
-    echo "v${version}" > "${snell_version_file}"
-    echo -e "${Info} Snell Server 主程序下载安装完毕！"
-    return 0
+    local version
+    version=$(normalizeSnellVersion "$1") || return 1
+    echo -e "${Info} 试图请求 ${Yellow_font_prefix}${2}${Font_color_suffix} Snell Server ……"
+    installSnellArchive "$version" "$3"
 }
 
 downloadSnellFromGitHub(){
@@ -618,74 +683,53 @@ downloadSnellFromGitee(){
 
 # 下载并安装 Snell v4
 downloadSnellV4(){
-	downloadSnell "${snell_v4_version}" "Snell v4 官网源版" || downloadSnellFromGitHub "${snell_v4_version}" "Snell v4 GitHub 备份源版" || downloadSnellFromGitee "${snell_v4_version}" "Snell v4 Gitee 备份源版"
+	local version="${1:-$snell_v4_version}"
+	downloadSnell "$version" "Snell v4 官网源版" || downloadSnellFromGitHub "$version" "Snell v4 GitHub 备份源版" || downloadSnellFromGitee "$version" "Snell v4 Gitee 备份源版"
 }
 
 # 下载并安装 Snell v5
 downloadSnellV5(){
-	downloadSnell "${snell_v5_version}" "Snell v5 官网源版" || downloadSnellFromGitHub "${snell_v5_version}" "Snell v5 GitHub 备份源版" || downloadSnellFromGitee "${snell_v5_version}" "Snell v5 Gitee 备份源版"
+	local version="${1:-$snell_v5_version}"
+	downloadSnell "$version" "Snell v5 官网源版" || downloadSnellFromGitHub "$version" "Snell v5 GitHub 备份源版" || downloadSnellFromGitee "$version" "Snell v5 Gitee 备份源版"
 }
 
 # 通用下载并安装 Snell 函数（带回退机制）
 downloadSnell(){
-	local version=$1
-	local version_type=$2
-	local allow_fallback=${3:-false}
-	local fallback_version=$4
-
-	echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
-	getSnellDownloadUrl "${version}"
-
-	# 首先检查 URL 是否有效
-	if ! curl -I -s --max-time 10 "$snell_url" | head -1 | grep -qE "200 OK|HTTP/2 200|HTTP/[0-9.]+ 200"; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载链接无效 (404)！"
-
-		# 如果允许回退且提供了回退版本
-		if [[ "$allow_fallback" == true && -n "$fallback_version" ]]; then
-			echo -e "${Info} 尝试回退到已安装版本 v${fallback_version}..."
-			getSnellDownloadUrl "${fallback_version}"
-			if curl -I -s --max-time 10 "$snell_url" | head -1 | grep -qE "200 OK|HTTP/2 200|HTTP/[0-9.]+ 200"; then
-				version="$fallback_version"
-				echo -e "${Info} 回退成功，使用版本 v${version}"
-			else
-				echo -e "${Error} 回退版本也无法下载！"
-				return 1
-			fi
-		else
-			return 1
-		fi
-	fi
-
-	if command -v curl >/dev/null 2>&1; then
-		curl -sSL -o "snell-server-v${version}-linux-${arch}.zip" "${snell_url}"
-	else
-		wget --no-check-certificate -O "snell-server-v${version}-linux-${arch}.zip" "${snell_url}"
-	fi
-	if [[ ! -e "snell-server-v${version}-linux-${arch}.zip" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 下载失败！"
-		return 1 && exit 1
-	else
-		unzip -o "snell-server-v${version}-linux-${arch}.zip"
-	fi
-	if [[ ! -e "snell-server" ]]; then
-		echo -e "${Error} Snell Server ${Yellow_font_prefix}${version_type}${Font_color_suffix} 解压失败！"
-		return 1 && exit 1
-	else
-		rm -rf "snell-server-v${version}-linux-${arch}.zip"
-		chmod +x snell-server
-		mv -f snell-server "${snell_bin}"
-		echo "v${version}" > ${snell_version_file}
-		echo -e "${Info} Snell Server 主程序下载安装完毕！"
-		return 0
-	fi
+    local version
+    version=$(normalizeSnellVersion "$1") || return 1
+    local version_type="$2" allow_fallback=${3:-false} fallback_version="$4"
+    [[ -n "$TARGET_UPDATE_VERSION" ]] && allow_fallback=false
+    echo -e "${Info} 试图请求 ${Yellow_font_prefix}${version_type}${Font_color_suffix} Snell Server ……"
+    if ! validateVersionUrl "$version" true; then
+        if [[ "$allow_fallback" == true && -n "$fallback_version" ]]; then
+            echo -e "${Info} 尝试回退到已安装版本 v${fallback_version}..."
+            validateVersionUrl "$fallback_version" true || return 1
+            version="$fallback_version"
+        else
+            return 1
+        fi
+    fi
+    getSnellDownloadUrl "$version"
+    installSnellArchive "$version" "$snell_url"
 }
 
 # 安装 Snell
 installSnell() {
-	if [[ ! -e "${snell_dir}" ]]; then
-		mkdir "${snell_dir}"
-	else
-		[[ -e "${snell_bin}" ]] && rm -rf "${snell_bin}"
+	if [[ -e "$snell_bin" ]]; then
+		echo -e "${Error} Snell 已安装，请使用更新功能；安装操作不会覆盖现有程序。"
+		return 1
+	fi
+	mkdir -p "$snell_dir" || return 1
+	local requested_version installer
+	if [[ -n "$1" ]]; then
+		requested_version=$(normalizeSnellVersion "$1") || return 1
+		installer="installSnellV${requested_version%%.*}"
+		if ! declare -F "$installer" >/dev/null; then
+			echo -e "${Error} 当前脚本尚不支持 v${requested_version%%.*} 协议的配置。"
+			return 1
+		fi
+		"$installer" "$requested_version"
+		return $?
 	fi
 	echo -e "选择安装版本${Yellow_font_prefix}[2-6]${Font_color_suffix}
 ==================================
@@ -1150,6 +1194,8 @@ ${Green_font_prefix} 1.${Font_color_suffix} default  ${Green_font_prefix} 2.${Fo
 switchBinary(){
     local old_ver=$1
     local new_ver=$2
+    local old_full_version
+    old_full_version=$(normalizeSnellVersion "$(cat "${snell_version_file}")") || return 1
 
     echo -e "${Info} 开始下载 Snell v${new_ver} 版本..."
     systemctl stop snell-server
@@ -1159,8 +1205,9 @@ switchBinary(){
         cp "${snell_bin}" "${snell_bin}.v${old_ver}.backup.$(date +%Y%m%d_%H%M%S)"
     fi
 
-    local target_full_version=""
-    local web_version=$(getLatestVersionFromWeb "v${new_ver}")
+    local target_full_version="${TARGET_UPDATE_VERSION:-}"
+    local web_version=""
+    [[ -z "$target_full_version" ]] && web_version=$(getLatestVersionFromWeb "v${new_ver}")
     local script_version=""
 
     case "$new_ver" in
@@ -1171,7 +1218,7 @@ switchBinary(){
         "6") script_version=${snell_v6_version} ;;
     esac
 
-    if [[ -n "$web_version" ]]; then
+    if [[ -z "$target_full_version" && -n "$web_version" ]]; then
         if validateVersionUrl "$web_version"; then
             target_full_version="$web_version"
             echo -e "${Info} 使用网页获取的 Snell v${new_ver} 版本: v${target_full_version}"
@@ -1190,7 +1237,7 @@ switchBinary(){
     fi
 
     if [[ -n "$target_full_version" ]]; then
-        downloadSnell "${target_full_version}" "Snell v${new_ver} 版本" true "$old_ver"
+        downloadSnell "${target_full_version}" "Snell v${new_ver} 版本" false "$old_full_version"
         if [[ $? -eq 0 ]]; then
             echo -e "${Info} Snell v${new_ver} 核心切换成功！"
             return 0
@@ -1203,8 +1250,8 @@ switchBinary(){
 
     backup_file=$(ls -t "${snell_bin}".v${old_ver}.backup.* 2>/dev/null | head -1)
     if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-        cp "$backup_file" "${snell_bin}"
-        echo "v${old_ver}" > ${snell_version_file}
+        cp "$backup_file" "${snell_bin}" || return 1
+        saveInstalledVersion "$old_full_version" || return 1
         echo -e "${Info} 已回滚到 Snell v${old_ver} 版本"
     fi
     systemctl start snell-server
@@ -1214,9 +1261,14 @@ switchBinary(){
 # 修改配置
 setConfig(){
     checkInstalledStatus
+    local requested_protocol="${1:-}" protocol_result=0
+    local current_full_version=$(cat "${snell_version_file}")
     local current_installed_ver=$(cat ${snell_version_file} | sed 's/^v//' | awk -F. '{print $1}')
     [[ -z "$current_installed_ver" ]] && current_installed_ver=$ver
 
+    if [[ -n "$requested_protocol" ]]; then
+        modify=8
+    else
     echo && echo -e "请输入要操作配置项的序号，然后回车
 =============================="
     echo -e " ${Green_font_prefix}1.${Font_color_suffix} 修改 端口"
@@ -1237,6 +1289,7 @@ setConfig(){
     echo -e "${Green_font_prefix}11.${Font_color_suffix} 修改 全部配置" && echo
     read -e -p "(默认: 取消):" modify
     [[ -z "${modify}" ]] && echo "已取消..." && exit 1
+    fi
     if [[ "${modify}" == "1" ]]; then
         readConfig
         setPort
@@ -1278,10 +1331,11 @@ setConfig(){
         restartSnell
     elif [[ "${modify}" == "8" ]]; then
         readConfig
+        local original_config=$(cat "$snell_conf")
         local current_installed_ver=$(cat ${snell_version_file} | sed 's/^v//' | awk -F. '{print $1}')
         [[ -z "$current_installed_ver" ]] && current_installed_ver=$ver
 
-        setVer
+        if [[ -n "$requested_protocol" ]]; then ver="$requested_protocol"; else setVer; fi
 
         if [[ "$ver" != "$current_installed_ver" ]]; then
             if [[ "$ver" -gt "$current_installed_ver" ]]; then
@@ -1301,11 +1355,15 @@ setConfig(){
                     checkPskForV6
                 else
                     setObfs
+                    [[ "$current_installed_ver" == 6 ]] && setIpv6
                 fi
 
                 switchBinary "$current_installed_ver" "$ver"
                 if [[ $? -ne 0 ]]; then
                     ver=$current_installed_ver
+                    printf '%s\n' "$original_config" > "$snell_conf"
+                    readConfig
+                    [[ -n "$requested_protocol" ]] && return 1
                 else
                     writeConfig
                     systemctl restart snell-server
@@ -1317,15 +1375,16 @@ setConfig(){
                         fi
                     done
                     if [[ "$status" != "running" ]]; then
+                        protocol_result=1
                         echo -e "${Error} 协议切换后服务启动失败，以下为错误日志："
                         journalctl -u snell-server -n 20 --no-pager
                         echo -e "${Error} 正在回滚到原版本..."
                         backup_file=$(ls -t "${snell_bin}".v${current_installed_ver}.backup.* 2>/dev/null | head -1)
                         if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-                            cp "$backup_file" "${snell_bin}"
-                            echo "v${current_installed_ver}" > ${snell_version_file}
+                            cp "$backup_file" "${snell_bin}" || return 1
+                            saveInstalledVersion "$current_full_version" || return 1
                             ver=$current_installed_ver
-                            writeConfig
+                            printf '%s\n' "$original_config" > "$snell_conf"
                             systemctl start snell-server
                             echo -e "${Info} 已回滚到 Snell v${current_installed_ver} 版本并恢复配置"
                         fi
@@ -1333,12 +1392,14 @@ setConfig(){
                         echo -e "${Info} Snell Server 重启完毕！"
                     fi
                     sleep 3s
+                    [[ -n "$requested_protocol" ]] && return "$protocol_result"
                     startMenu
                     return
                 fi
             else
                 echo -e "${Info} 已取消切换，保持原配置"
                 ver=$current_installed_ver
+                [[ -n "$requested_protocol" ]] && return 0
             fi
         else
             echo -e "${Info} 版本未发生改变"
@@ -1426,8 +1487,8 @@ setConfig(){
                     echo -e "${Error} 正在回滚到原版本..."
                     backup_file=$(ls -t "${snell_bin}".v${current_installed_ver}.backup.* 2>/dev/null | head -1)
                     if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-                        cp "$backup_file" "${snell_bin}"
-                        echo "v${current_installed_ver}" > ${snell_version_file}
+                        cp "$backup_file" "${snell_bin}" || return 1
+                        saveInstalledVersion "$current_full_version" || return 1
                         ver=$current_installed_ver
                         writeConfig
                         systemctl start snell-server
@@ -1456,6 +1517,8 @@ setConfig(){
 
 # 安装 Snell v2
 installSnellV2(){
+	local version="${1:-$snell_v2_version}"
+	ver=${version%%.*}
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装！" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -1468,7 +1531,7 @@ installSnellV2(){
 	checkDependencies
 	installDependencies
 	echo -e "${Info} 开始下载/安装..."
-	downloadSnellV2
+	downloadSnellV2 "$version" || return 1
 	echo -e "${Info} 开始安装 服务脚本..."
 	setupService
 	echo -e "${Info} 开始写入 配置文件..."
@@ -1481,6 +1544,8 @@ installSnellV2(){
 
 # 安装 Snell v3
 installSnellV3(){
+	local version="${1:-$snell_v3_version}"
+	ver=${version%%.*}
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装！" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -1493,7 +1558,7 @@ installSnellV3(){
 	checkDependencies
 	installDependencies
 	echo -e "${Info} 开始下载/安装..."
-	downloadSnellV3
+	downloadSnellV3 "$version" || return 1
 	echo -e "${Info} 开始安装 服务脚本..."
 	setupService
 	echo -e "${Info} 开始写入 配置文件..."
@@ -1506,6 +1571,8 @@ installSnellV3(){
 
 # 安装 Snell v4
 installSnellV4(){
+	local version="${1:-$snell_v4_version}"
+	ver=${version%%.*}
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装，请先卸载旧版再安装新版!" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -1519,7 +1586,7 @@ installSnellV4(){
 	checkDependencies
 	installDependencies
 	echo -e "${Info} 开始下载/安装..."
-	downloadSnellV4
+	downloadSnellV4 "$version" || return 1
 	echo -e "${Info} 开始安装 服务脚本..."
 	setupService
 	echo -e "${Info} 开始写入 配置文件..."
@@ -1532,6 +1599,8 @@ installSnellV4(){
 
 # 安装 Snell v5
 installSnellV5(){
+	local version="${1:-$snell_v5_version}"
+	ver=${version%%.*}
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装，请先卸载旧版再安装新版!" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -1545,7 +1614,7 @@ installSnellV5(){
 	checkDependencies
 	installDependencies
 	echo -e "${Info} 开始下载/安装..."
-	downloadSnellV5
+	downloadSnellV5 "$version" || return 1
 	echo -e "${Info} 开始安装 服务脚本..."
 	setupService
 	echo -e "${Info} 开始写入 配置文件..."
@@ -1559,11 +1628,13 @@ installSnellV5(){
 
 # 下载并安装 Snell v6（官方源）
 downloadSnellV6(){
-	downloadSnell "${snell_v6_version}" "Snell v6 官网源版"
+	downloadSnell "${1:-$snell_v6_version}" "Snell v6 官网源版"
 }
 
 # 安装 Snell v6
 installSnellV6(){
+	local version="${1:-$snell_v6_version}"
+	ver=${version%%.*}
 	checkRoot
 	[[ -e ${snell_bin} ]] && echo -e "${Error} 检测到 Snell Server 已安装，请先卸载旧版再安装新版!" && exit 1
 	echo -e "${Info} 开始设置 配置..."
@@ -1577,7 +1648,7 @@ installSnellV6(){
 	checkDependencies
 	installDependencies
 	echo -e "${Info} 开始下载/安装..."
-	downloadSnellV6
+	downloadSnellV6 "$version" || return 1
 	echo -e "${Info} 开始安装 服务脚本..."
 	setupService
 	echo -e "${Info} 开始写入 配置文件..."
@@ -1655,6 +1726,7 @@ updateSnell(){
 updateV2toV3(){
 	checkInstalledStatus
 	readConfig
+	local current_full_version=$(cat "${snell_version_file}")
 
 	# 检查当前版本是否为 Snell v2
 	if [[ "$ver" != "2" ]]; then
@@ -1712,7 +1784,8 @@ updateV2toV3(){
 			# 回滚到 Snell v2
 			backup_file=$(ls -t "${snell_bin}".v2.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-				cp "$backup_file" "${snell_bin}"
+				cp "$backup_file" "${snell_bin}" || return 1
+				saveInstalledVersion "$current_full_version" || return 1
 				sed -i "s/version = 3/version = 2/g" "${snell_conf}"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 Snell v2 版本"
@@ -1731,6 +1804,7 @@ updateV2toV3(){
 updateV3toV4(){
 	checkInstalledStatus
 	readConfig
+	local current_full_version=$(cat "${snell_version_file}")
 
 	# 检查当前版本是否为 Snell v3
 	if [[ "$ver" != "3" ]]; then
@@ -1815,8 +1889,8 @@ updateV3toV4(){
 			# 回滚到 Snell v3
 			backup_file=$(ls -t "${snell_bin}".v3.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-				cp "$backup_file" "${snell_bin}"
-				echo "v3.0.1" > ${snell_version_file}
+				cp "$backup_file" "${snell_bin}" || return 1
+				saveInstalledVersion "$current_full_version" || return 1
 				sed -i "s/version = 4/version = 3/g" "${snell_conf}"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 Snell v3 版本"
@@ -1934,8 +2008,8 @@ updateV4toV5(){
 			# 回滚到 Snell v4
 			backup_file=$(ls -t "${snell_bin}".v4.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-				cp "$backup_file" "${snell_bin}"
-				echo "v${current_v4_version}" > ${snell_version_file}
+				cp "$backup_file" "${snell_bin}" || return 1
+				saveInstalledVersion "$current_v4_version" || return 1
 				sed -i "s/version = 5/version = 4/g" "${snell_conf}"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 Snell v4 版本"
@@ -1955,6 +2029,7 @@ updateV4toV5(){
 updateV5toV6(){
 	checkInstalledStatus
 	readConfig
+	local original_config=$(cat "$snell_conf")
 
 	if [[ "$ver" != "5" ]]; then
 		echo -e "${Error} 当前版本不是 Snell v5，无法使用此功能！当前版本：Snell v${ver}"
@@ -2049,10 +2124,10 @@ updateV5toV6(){
 			echo -e "${Error} 正在回滚..."
 			backup_file=$(ls -t "${snell_bin}".v5.backup.* 2>/dev/null | head -1)
 			if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-				cp "$backup_file" "${snell_bin}"
-				echo "v${current_v5_version}" > ${snell_version_file}
+				cp "$backup_file" "${snell_bin}" || return 1
+				saveInstalledVersion "$current_v5_version" || return 1
 				ver=5
-				writeConfig
+				printf '%s\n' "$original_config" > "$snell_conf"
 				systemctl start snell-server
 				echo -e "${Info} 已回滚到 Snell v5 版本"
 			fi
@@ -2069,20 +2144,26 @@ updateV5toV6(){
 updateSnellServer(){
     checkInstalledStatus
     readConfig
+    local command_update=${TARGET_UPDATE_VERSION:+true} update_result=0
+    if ! checkVersionUpdate false; then
+        echo -e "${Error} 无法读取完整版本记录，请检查 ${snell_version_file}。"
+        return 1
+    fi
 
     echo -e "${Info} 准备更新 Snell Server..."
 
     if [[ -n "$TARGET_UPDATE_VERSION" ]]; then
         local target_major=$(echo "$TARGET_UPDATE_VERSION" | awk -F. '{print $1}')
+        if ! validateVersionUrl "$TARGET_UPDATE_VERSION" true; then
+            unset TARGET_UPDATE_VERSION
+            return 1
+        fi
         if [[ "$ver" != "$target_major" ]]; then
-             echo -e "${Warning} 注意：你正在尝试跨大版本更新 (从 v${ver} 到 v${target_major})！"
-             echo -e "${Warning} 跨大版本更新可能会导致原有配置文件不兼容，从而引发服务启动失败。"
-             read -e -p "是否确定继续？[y/N] (默认: n): " force_cross
-             [[ -z "${force_cross}" ]] && force_cross="n"
-             if [[ "${force_cross}" != [Yy]* ]]; then
-                 echo -e "${Info} 已取消操作。"
-                 exit 0
-             fi
+            echo -e "${Info} 使用菜单中的协议版本切换流程更新到 v${TARGET_UPDATE_VERSION}。"
+            setConfig "$target_major"
+            update_result=$?
+            unset TARGET_UPDATE_VERSION
+            return "$update_result"
         fi
     fi
 
@@ -2141,6 +2222,8 @@ updateSnellServer(){
     if [[ ${confirm} == [Nn] ]]; then
         echo -e "${Info} 已取消更新"
         sleep 2s
+        unset TARGET_UPDATE_VERSION
+        [[ "$command_update" == true ]] && return 0
         startMenu
         return 0
     fi
@@ -2167,9 +2250,11 @@ updateSnellServer(){
     else
         echo -e "${Info} 开始下载最新版本文件..."
     fi
+    local allow_fallback=true
+    [[ -n "$TARGET_UPDATE_VERSION" ]] && allow_fallback=false
     case "$ver" in
-        "6")
-            downloadSnell "${latest_available_version}" "Snell v6 最新版" true "${current_installed_version}"
+        4|5|6)
+            downloadSnell "${latest_available_version}" "Snell v${ver} 更新版" "$allow_fallback" "${current_installed_version}"
             ;;
         *)
             echo -e "${Error} 不支持的版本: Snell v${ver}"
@@ -2201,22 +2286,25 @@ updateSnellServer(){
             fi
         else
             echo -e "${Error} 服务启动失败，正在回滚..."
+            update_result=1
             # 回滚到备份版本
             backup_file=$(ls -t "${snell_bin}".backup.* 2>/dev/null | head -1)
             if [[ -n "$backup_file" && -e "$backup_file" ]]; then
-                cp "$backup_file" "${snell_bin}"
-                echo "v${current_installed_version}" > ${snell_version_file}
+                cp "$backup_file" "${snell_bin}" || return 1
+                saveInstalledVersion "$current_installed_version" || return 1
                 systemctl start snell-server
                 echo -e "${Info} 已回滚到备份版本 v${current_installed_version}"
             fi
         fi
     else
         echo -e "${Error} 下载失败，启动原版本"
+        update_result=1
         systemctl start snell-server
     fi
 
     sleep 3s
     unset TARGET_UPDATE_VERSION
+    [[ "$command_update" == true ]] && return "$update_result"
     startMenu
 }
 
@@ -2237,9 +2325,9 @@ getLatestVersionFromWeb(){
     if [[ "$version_type" == "v4" ]]; then
         versions=$(echo "$page_content" | grep -oE "snell-server-v4\.[0-9]+\.[0-9]+-linux" | sed 's/snell-server-v//g' | sed 's/-linux//g')
     elif [[ "$version_type" == "v5" ]]; then
-        versions=$(echo "$page_content" | grep -oE "snell-server-v5\.[0-9]+\.[0-9]+[a-z]*[0-9]*-linux" | sed 's/snell-server-v//g' | sed 's/-linux//g')
+        versions=$(echo "$page_content" | grep -oE "snell-server-v5\.[0-9]+\.[0-9]+(-?(alpha|beta|rc|a|b)(\.?[0-9]+)?)?-linux" | sed 's/snell-server-v//g' | sed 's/-linux//g')
     elif [[ "$version_type" == "v6" ]]; then
-        versions=$(echo "$page_content" | grep -oE "snell-server-v6\.[0-9]+\.[0-9]+[a-z]*[0-9]*-linux" | sed 's/snell-server-v//g' | sed 's/-linux//g')
+        versions=$(echo "$page_content" | grep -oE "snell-server-v6\.[0-9]+\.[0-9]+(-?(alpha|beta|rc|a|b)(\.?[0-9]+)?)?-linux" | sed 's/snell-server-v//g' | sed 's/-linux//g')
     fi
 
     if [[ -n "$versions" ]]; then
@@ -2927,33 +3015,37 @@ if [[ -n "$1" ]]; then
         exit 0
     fi
 
-    target_ver="$1"
-    target_ver=$(echo "$target_ver" | sed 's/^v//')
-    major_ver=$(echo "$target_ver" | awk -F. '{print $1}')
+    if [[ $# -ne 2 || ( "$1" != "install" && "$1" != "update" ) ]]; then
+        echo -e "${Error} 用法：./snell.sh install <版本号> 安装，./snell.sh update <版本号> 更新。"
+        exit 1
+    fi
+    command_mode="$1"
+    shift
+    target_ver=$(normalizeSnellVersion "$1") || {
+        echo -e "${Error} 版本号格式不正确！(示例: 6.0.1, 6.0.1rc2, 6.0.1-beta.1)"
+        exit 1
+    }
+    major_ver=${target_ver%%.*}
 
-    if [[ "$major_ver" != "4" && "$major_ver" != "5" && "$major_ver" != "6" ]]; then
+    if [[ "$command_mode" == update && "$major_ver" != "4" && "$major_ver" != "5" && "$major_ver" != "6" ]]; then
         echo -e "${Error} 提供的版本号格式不正确，或不支持该主版本！(示例: 5.0.1, 6.0.0rc1)"
         exit 1
     fi
-    if ! validateVersionUrl "$target_ver"; then
-        echo -e "${Error} 未找到 Snell v${target_ver} 版本的下载链接，请确认拼写完全正确！"
-        exit 1
-    fi
-
-    if [[ "$major_ver" == "4" ]]; then snell_v4_version="$target_ver"; fi
-    if [[ "$major_ver" == "5" ]]; then snell_v5_version="$target_ver"; fi
-    if [[ "$major_ver" == "6" ]]; then snell_v6_version="$target_ver"; fi
-
-    if [[ -e ${snell_bin} && -e ${snell_conf} ]]; then
+    if [[ "$command_mode" == "update" ]]; then
+        if [[ ! -e ${snell_bin} || ! -e ${snell_conf} ]]; then
+            echo -e "${Error} 尚未安装 Snell，请先使用 ./snell.sh install ${target_ver} 安装。"
+            exit 1
+        fi
         TARGET_UPDATE_VERSION="$target_ver"
-        checkVersionUpdate true
         updateSnellServer
-        exit 0
+        exit $?
     else
+        if [[ -e ${snell_bin} ]]; then
+            echo -e "${Error} 已安装 Snell，请使用 ./snell.sh update ${target_ver} 更新。"
+            exit 1
+        fi
         echo -e "${Info} 检测到尚未安装 Snell，进入全新安装流程 (v${target_ver})..."
-        if [[ "$major_ver" == "4" ]]; then installSnellV4; fi
-        if [[ "$major_ver" == "5" ]]; then installSnellV5; fi
-        if [[ "$major_ver" == "6" ]]; then installSnellV6; fi
+        installSnell "$target_ver" || exit 1
 
         checkStatus
         if [[ "$status" == "running" ]]; then
